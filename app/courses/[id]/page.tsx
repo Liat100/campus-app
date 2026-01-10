@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Course, courseSchema } from "@/lib/types";
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowRight, AlertCircle, CheckCircle2, Download, Upload } from "lucide-react";
+import { ArrowRight, AlertCircle, CheckCircle2, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function CourseEditorPage() {
   const params = useParams();
@@ -29,14 +29,6 @@ export default function CourseEditorPage() {
   const isNewCourse = courseId === "new";
   
   const { getCourseById, createCourse, updateCourse, isLoading } = useCourses();
-  
-  // Refs for file inputs
-  const gradingFileInputRef = useRef<HTMLInputElement>(null);
-  const clientLogoInputRef = useRef<HTMLInputElement>(null);
-  const certificateSignatureInputRef = useRef<HTMLInputElement>(null);
-  const homePageFileInputRef = useRef<HTMLInputElement>(null);
-  const aboutFileInputRef = useRef<HTMLInputElement>(null);
-  const syllabusFileInputRef = useRef<HTMLInputElement>(null);
   
   // Find existing course or create new one
   const existingCourse = isNewCourse 
@@ -68,12 +60,14 @@ export default function CourseEditorPage() {
     supportContact: "",
     courseLaunchDate: undefined,
     additionalNotes: "",
+    courseFolderLink: "",
   });
 
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showImageSizes, setShowImageSizes] = useState(false);
+  const [showCourseFolder, setShowCourseFolder] = useState(false);
 
   // Update form when existing course loads
   useEffect(() => {
@@ -103,6 +97,7 @@ export default function CourseEditorPage() {
         supportContact: existingCourse.supportContact || "",
         courseLaunchDate: existingCourse.courseLaunchDate,
         additionalNotes: existingCourse.additionalNotes || "",
+        courseFolderLink: existingCourse.courseFolderLink || "",
       });
     }
   }, [existingCourse]);
@@ -132,13 +127,6 @@ export default function CourseEditorPage() {
 
   const handleCheckboxChange = (field: keyof Course, checked: boolean) => {
     setCourse((prev) => ({ ...prev, [field]: checked }));
-  };
-
-  const handleFileChange = (field: keyof Course, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      handleInputChange(field, file.name);
-    }
   };
 
   const isFieldMissing = (fieldName: string) => {
@@ -192,6 +180,7 @@ export default function CourseEditorPage() {
           supportContact: course.supportContact,
           courseLaunchDate: course.courseLaunchDate,
           additionalNotes: course.additionalNotes,
+          courseFolderLink: course.courseFolderLink,
         });
 
         console.log("=== Course Created ===");
@@ -228,6 +217,7 @@ export default function CourseEditorPage() {
           supportContact: course.supportContact,
           courseLaunchDate: course.courseLaunchDate,
           additionalNotes: course.additionalNotes,
+          courseFolderLink: course.courseFolderLink,
         });
 
         if (updatedCourse) {
@@ -475,47 +465,22 @@ export default function CourseEditorPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="gradingFile">או העלה קובץ מודל ציונים</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          ref={gradingFileInputRef}
-                          id="gradingFile"
-                          type="file"
-                          onChange={(e) => handleFileChange("gradingFile", e)}
-                          className="hidden"
-                        />
-                        <Button
-                          type="button"
-                          onClick={() => gradingFileInputRef.current?.click()}
-                          className={`h-8 px-3 text-xs bg-black text-white hover:bg-gray-800 ${
-                            isFieldMissing("מודל ציונים (חובה לקורס עם תעודה)")
-                              ? "border-2 border-red-500"
-                              : ""
-                          }`}
-                        >
-                          <Upload className="mr-1.5 h-3 w-3" />
-                          העלאת קובץ
-                        </Button>
-                        {course.gradingFile && (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              // Create a temporary link to download the file
-                              const link = document.createElement("a");
-                              link.href = "#"; // In a real app, this would be the actual file URL
-                              link.download = course.gradingFile as string;
-                              link.click();
-                            }}
-                            className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                          >
-                            <Download className="mr-1.5 h-3 w-3" />
-                            הורד {course.gradingFile}
-                          </Button>
-                        )}
-                      </div>
-                      {hasError("gradingFile") && (
-                        <p className="text-sm text-red-500">{errors.gradingFile}</p>
-                      )}
+                      <Label>או העלה קובץ מודל ציונים</Label>
+                      <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (course.courseFolderLink) {
+                            window.open(course.courseFolderLink, '_blank');
+                          }
+                        }}
+                        disabled={!course.courseFolderLink}
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                      >
+                        <ExternalLink className="ml-2 h-3 w-3" />
+                        פתח תיקיית קורס
+                      </Button>
                     </div>
                   </div>
 
@@ -560,50 +525,27 @@ export default function CourseEditorPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="certificateSignature">
+                        <Label>
                           קובץ החתימה <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                         </Label>
                         <p className="text-sm text-gray-600 mb-2">
                           <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span> יש לעלות את חתימת החותם על רקע שקוף
                         </p>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            ref={certificateSignatureInputRef}
-                            id="certificateSignature"
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleFileChange("certificateSignature", e)}
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            onClick={() => certificateSignatureInputRef.current?.click()}
-                            className={`h-8 px-3 text-xs bg-black text-white hover:bg-gray-800 ${
-                              hasError("certificateSignature") ? "border-2 border-red-500" : ""
-                            }`}
-                          >
-                            <Upload className="mr-1.5 h-3 w-3" />
-                            העלאת קובץ
-                          </Button>
-                          {course.certificateSignature && (
-                            <Button
-                              type="button"
-                              onClick={() => {
-                                const link = document.createElement("a");
-                                link.href = "#";
-                                link.download = course.certificateSignature as string;
-                                link.click();
-                              }}
-                              className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                            >
-                              <Download className="mr-1.5 h-3 w-3" />
-                              הורד {course.certificateSignature}
-                            </Button>
-                          )}
-                        </div>
-                        {hasError("certificateSignature") && (
-                          <p className="text-sm text-red-500">{errors.certificateSignature}</p>
-                        )}
+                        <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (course.courseFolderLink) {
+                              window.open(course.courseFolderLink, '_blank');
+                            }
+                          }}
+                          disabled={!course.courseFolderLink}
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
+                        >
+                          <ExternalLink className="ml-2 h-3 w-3" />
+                          פתח תיקיית קורס
+                        </Button>
                       </div>
 
                       {/* Client Logo - optional */}
@@ -624,38 +566,22 @@ export default function CourseEditorPage() {
                           </Label>
                         </div>
                         {course.clientLogoRequired && (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              ref={clientLogoInputRef}
-                              id="clientLogo"
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleFileChange("clientLogo", e)}
-                              className="hidden"
-                            />
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
                             <Button
                               type="button"
-                              onClick={() => clientLogoInputRef.current?.click()}
-                              className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
+                              onClick={() => {
+                                if (course.courseFolderLink) {
+                                  window.open(course.courseFolderLink, '_blank');
+                                }
+                              }}
+                              disabled={!course.courseFolderLink}
+                              variant="outline"
+                              className="h-8 px-3 text-xs"
                             >
-                              <Upload className="mr-1.5 h-3 w-3" />
-                              העלאת קובץ
+                              <ExternalLink className="ml-2 h-3 w-3" />
+                              פתח תיקיית קורס
                             </Button>
-                            {course.clientLogo && (
-                              <Button
-                                type="button"
-                                onClick={() => {
-                                  const link = document.createElement("a");
-                                  link.href = "#";
-                                  link.download = course.clientLogo as string;
-                                  link.click();
-                                }}
-                                className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                              >
-                                <Download className="mr-1.5 h-3 w-3" />
-                                הורד {course.clientLogo}
-                              </Button>
-                            )}
                           </div>
                         )}
                         {hasError("clientLogo") && (
@@ -742,97 +668,47 @@ export default function CourseEditorPage() {
               {/* Conditional fields based on selection */}
               {course.homePageOption === "homePageFile" && (
                 <div className="space-y-2">
-                  <Label htmlFor="homePageFile">
+                  <Label>
                     קובץ פרטי עמוד הבית <span className={isFieldComplete("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      ref={homePageFileInputRef}
-                      id="homePageFile"
-                      type="file"
-                      onChange={(e) => handleFileChange("homePageFile", e)}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => homePageFileInputRef.current?.click()}
-                      className={`h-8 px-3 text-xs bg-black text-white hover:bg-gray-800 ${
-                        isFieldMissing("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)") ||
-                        hasError("homePageFile")
-                          ? "border-2 border-red-500"
-                          : ""
-                      }`}
-                    >
-                      <Upload className="mr-1.5 h-3 w-3" />
-                      העלאת קובץ
-                    </Button>
-                    {course.homePageFile && (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          const link = document.createElement("a");
-                          link.href = "#";
-                          link.download = course.homePageFile as string;
-                          link.click();
-                        }}
-                        className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                      >
-                        <Download className="mr-1.5 h-3 w-3" />
-                        הורד {course.homePageFile}
-                      </Button>
-                    )}
-                  </div>
-                  {hasError("homePageFile") && (
-                    <p className="text-sm text-red-500">{errors.homePageFile}</p>
-                  )}
+                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (course.courseFolderLink) {
+                        window.open(course.courseFolderLink, '_blank');
+                      }
+                    }}
+                    disabled={!course.courseFolderLink}
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                  >
+                    <ExternalLink className="ml-2 h-3 w-3" />
+                    פתח תיקיית קורס
+                  </Button>
                 </div>
               )}
 
               {course.homePageOption === "aboutFile" && (
                 <div className="space-y-2">
-                  <Label htmlFor="aboutFile">
+                  <Label>
                     קובץ עמוד אודות <span className={isFieldComplete("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      ref={aboutFileInputRef}
-                      id="aboutFile"
-                      type="file"
-                      onChange={(e) => handleFileChange("aboutFile", e)}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => aboutFileInputRef.current?.click()}
-                      className={`h-8 px-3 text-xs bg-black text-white hover:bg-gray-800 ${
-                        isFieldMissing("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ||
-                        hasError("aboutFile")
-                          ? "border-2 border-red-500"
-                          : ""
-                      }`}
-                    >
-                      <Upload className="mr-1.5 h-3 w-3" />
-                      העלאת קובץ
-                    </Button>
-                    {course.aboutFile && (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          const link = document.createElement("a");
-                          link.href = "#";
-                          link.download = course.aboutFile as string;
-                          link.click();
-                        }}
-                        className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                      >
-                        <Download className="mr-1.5 h-3 w-3" />
-                        הורד {course.aboutFile}
-                      </Button>
-                    )}
-                  </div>
-                  {hasError("aboutFile") && (
-                    <p className="text-sm text-red-500">{errors.aboutFile}</p>
-                  )}
+                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (course.courseFolderLink) {
+                        window.open(course.courseFolderLink, '_blank');
+                      }
+                    }}
+                    disabled={!course.courseFolderLink}
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                  >
+                    <ExternalLink className="ml-2 h-3 w-3" />
+                    פתח תיקיית קורס
+                  </Button>
                 </div>
               )}
 
@@ -890,45 +766,24 @@ export default function CourseEditorPage() {
               {course.syllabusRequired && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="syllabusFile">
+                    <Label>
                       העלה מסמך סילבוס הכולל שעות לימוד לכל פרק ואחוז מהציון (במקרה של תעודה) <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
                     </Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        ref={syllabusFileInputRef}
-                        id="syllabusFile"
-                        type="file"
-                        onChange={(e) => handleFileChange("syllabusFile", e)}
-                        className="hidden"
-                      />
-                        <Button
-                          type="button"
-                          onClick={() => syllabusFileInputRef.current?.click()}
-                          className={`h-8 px-3 text-xs bg-black text-white hover:bg-gray-800 ${
-                            isFieldMissing("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)")
-                              ? "border-2 border-red-500"
-                              : ""
-                          }`}
-                        >
-                          <Upload className="mr-1.5 h-3 w-3" />
-                          העלאת קובץ
-                        </Button>
-                        {course.syllabusFile && (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              const link = document.createElement("a");
-                              link.href = "#";
-                              link.download = course.syllabusFile as string;
-                              link.click();
-                            }}
-                            className="h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                          >
-                            <Download className="mr-1.5 h-3 w-3" />
-                            הורד {course.syllabusFile}
-                          </Button>
-                        )}
-                    </div>
+                    <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (course.courseFolderLink) {
+                          window.open(course.courseFolderLink, '_blank');
+                        }
+                      }}
+                      disabled={!course.courseFolderLink}
+                      variant="outline"
+                      className="h-8 px-3 text-xs"
+                    >
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                      פתח תיקיית קורס
+                    </Button>
                   </div>
 
                     <div className="space-y-2">
@@ -1143,6 +998,87 @@ export default function CourseEditorPage() {
                 />
               </div>
             </CardContent>
+          </Card>
+
+          {/* Course Folder Link Section - Collapsible */}
+          <Card>
+            {!showCourseFolder ? (
+              <CardHeader 
+                className="cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
+                onClick={() => setShowCourseFolder(!showCourseFolder)}
+              >
+                <div className="flex items-center justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowCourseFolder(!showCourseFolder);
+                    }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+            ) : (
+              <>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-gray-50 transition-colors rounded-t-lg"
+                  onClick={() => setShowCourseFolder(!showCourseFolder)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-base font-normal">אין צורך לעדכן לשימוש פנימי בלבד</CardTitle>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCourseFolder(!showCourseFolder);
+                      }}
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 text-right">
+                  <div className="space-y-2">
+                    <Label htmlFor="courseFolderLink">
+                      קישור לתיקיית Drive <span className={isFieldComplete("קישור לתיקיית Drive") ? "text-emerald-500" : "text-gray-400"}>*</span>
+                    </Label>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        id="courseFolderLink"
+                        type="url"
+                        value={course.courseFolderLink || ""}
+                        onChange={(e) => handleInputChange("courseFolderLink", e.target.value)}
+                        placeholder="https://drive.google.com/drive/folders/..."
+                        className="flex-1"
+                        dir="ltr"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (course.courseFolderLink) {
+                            window.open(course.courseFolderLink, '_blank');
+                          }
+                        }}
+                        disabled={!course.courseFolderLink}
+                        variant="outline"
+                      >
+                        <ExternalLink className="ml-2 h-4 w-4" />
+                        פתח תיקיית קורס
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </>
+            )}
           </Card>
 
           {/* Action Buttons */}

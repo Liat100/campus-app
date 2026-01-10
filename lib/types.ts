@@ -27,6 +27,7 @@ export interface Course {
   supportContact?: string;
   courseLaunchDate?: Date;
   additionalNotes?: string;
+  courseFolderLink?: string;
   createdAt?: Date;
 }
 

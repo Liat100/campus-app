@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCourses } from "@/lib/hooks/useCourses";
@@ -8,16 +8,45 @@ import { getMissingMandatoryFields, isCourseReadyForLaunch } from "@/lib/courseV
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, CheckCircle2, XCircle, LayoutGrid, List, Pencil } from "lucide-react";
+import { Plus, CheckCircle2, XCircle, LayoutGrid, List, Pencil, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Dashboard() {
   const router = useRouter();
   const { courses, isLoading } = useCourses();
   const [isGridView, setIsGridView] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "date" | "status">("name");
 
   const handleNewCourse = () => {
     router.push("/courses/new");
   };
+
+  // Filter and sort courses
+  const sortedCourses = useMemo(() => {
+    // Filter courses by search query
+    const filtered = courses.filter((course) =>
+      course.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort courses
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "name") {
+        return (a.name || "").localeCompare(b.name || "", "he");
+      } else if (sortBy === "date") {
+        const dateA = a.createdAt?.getTime() || 0;
+        const dateB = b.createdAt?.getTime() || 0;
+        return dateB - dateA; // Newest first
+      } else if (sortBy === "status") {
+        const isReadyA = isCourseReadyForLaunch(a);
+        const isReadyB = isCourseReadyForLaunch(b);
+        if (isReadyA === isReadyB) return 0;
+        return isReadyA ? -1 : 1; // Ready first
+      }
+      return 0;
+    });
+  }, [courses, searchQuery, sortBy]);
 
   return (
     <div className="relative min-h-screen bg-gray-50 p-8 overflow-hidden" dir="rtl">
@@ -60,32 +89,60 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="mt-4 flex justify-between items-center">
-            <Button
-              onClick={() => setIsGridView(!isGridView)}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              {isGridView ? (
-                <>
-                  <List className="h-4 w-4" />
-                  תצוגת רשימה
-                </>
-              ) : (
-                <>
-                  <LayoutGrid className="h-4 w-4" />
-                  תצוגת רשת
-                </>
-              )}
-            </Button>
-            <Button 
-              onClick={handleNewCourse} 
-              className="px-6"
-            >
-              <Plus className="ml-2 h-4 w-4" />
-              קורס חדש
-            </Button>
+          <div className="mt-4 space-y-4">
+            {/* Search and Sort Controls */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex-1 max-w-md relative">
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="חפש לפי שם קורס..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10 w-full"
+                  dir="rtl"
+                />
+              </div>
+              <div className="flex gap-2 items-center">
+                <Select value={sortBy} onValueChange={(value: "name" | "date" | "status") => setSortBy(value)}>
+                  <SelectTrigger className="w-[180px] text-right">
+                    <SelectValue placeholder="מיין לפי" />
+                  </SelectTrigger>
+                  <SelectContent dir="rtl">
+                    <SelectItem value="name" className="text-right">שם קורס</SelectItem>
+                    <SelectItem value="date" className="text-right">תאריך יצירה</SelectItem>
+                    <SelectItem value="status" className="text-right">סטטוס</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => setIsGridView(!isGridView)}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  {isGridView ? (
+                    <>
+                      <List className="h-4 w-4" />
+                      תצוגת רשימה
+                    </>
+                  ) : (
+                    <>
+                      <LayoutGrid className="h-4 w-4" />
+                      תצוגת רשת
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleNewCourse} 
+                className="px-6"
+              >
+                <Plus className="ml-2 h-4 w-4" />
+                קורס חדש
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -100,9 +157,13 @@ export default function Dashboard() {
               צור קורס ראשון
             </Button>
           </div>
+        ) : sortedCourses.length === 0 ? (
+          <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-xl">
+            <p className="text-gray-400 mb-6">לא נמצאו קורסים התואמים לחיפוש</p>
+          </div>
         ) : (
           <div className={isGridView ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "flex flex-col gap-6"}>
-            {courses.map((course) => {
+            {sortedCourses.map((course) => {
               const missingFields = getMissingMandatoryFields(course);
               const isReady = isCourseReadyForLaunch(course);
 
@@ -113,9 +174,11 @@ export default function Dashboard() {
                 >
                   <CardHeader className="pb-4">
                     <div className="flex items-start justify-between gap-4">
-                      <CardTitle className="text-lg font-bold text-gray-900 leading-tight">
-                        {course.name || "ללא שם קורס"}
-                      </CardTitle>
+                      <Link href={`/courses/${course.id}`} className="flex-1 hover:opacity-80 transition-opacity">
+                        <CardTitle className="text-lg font-bold text-gray-900 leading-tight cursor-pointer">
+                          {course.name || "ללא שם קורס"}
+                        </CardTitle>
+                      </Link>
                       <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
                         <Button 
                           variant="outline"
