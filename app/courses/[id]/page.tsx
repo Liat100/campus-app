@@ -294,13 +294,13 @@ export default function CourseEditorPage() {
             {/* Title and course name - Right aligned, vertically centered */}
             <div className="relative flex items-center justify-start h-full text-right z-10" dir="rtl">
               <div className="space-y-1">
-                <h1 className="text-xl font-extrabold tracking-tight text-indigo-950">
+                <p className="text-sm font-medium text-indigo-950/80">
                   {existingCourse ? "עריכת קורס" : "קורס חדש"}
-                </h1>
+                </p>
                 {existingCourse && course.name && (
-                  <p className="text-indigo-950 text-xs">
+                  <h1 className="text-2xl font-extrabold tracking-tight text-indigo-950">
                     {course.name}
-                  </p>
+                  </h1>
                 )}
               </div>
             </div>
