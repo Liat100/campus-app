@@ -47,9 +47,8 @@ export function getMissingMandatoryFields(course: Partial<Course>): string[] {
 
   // Home page option validation
   const validHomePageOptions = ["homePageFile", "aboutFile", "aboutLink"];
-  if (!course.homePageOption || 
-      course.homePageOption === "" || 
-      typeof course.homePageOption !== "string" ||
+ if (!course.homePageOption || 
+    typeof course.homePageOption !== "string" ||
       !validHomePageOptions.includes(course.homePageOption)) {
     missing.push("בחירה בעמוד הבית (חובה לבחור אחת מהאפשרויות)");
   } else {
