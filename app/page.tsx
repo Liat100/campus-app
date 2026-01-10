@@ -8,19 +8,31 @@ import { getMissingMandatoryFields, isCourseReadyForLaunch } from "@/lib/courseV
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, CheckCircle2, XCircle, LayoutGrid, List, Pencil, Search } from "lucide-react";
+import { Plus, CheckCircle2, XCircle, LayoutGrid, List, Pencil, Search, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Dashboard() {
   const router = useRouter();
-  const { courses, isLoading } = useCourses();
+  const { courses, isLoading, deleteCourse } = useCourses();
   const [isGridView, setIsGridView] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "date" | "status">("name");
 
   const handleNewCourse = () => {
     router.push("/courses/new");
+  };
+
+  const handleDeleteCourse = async (courseId: number, courseName: string) => {
+    if (window.confirm(`האם אתה בטוח שברצונך למחוק את הקורס "${courseName}"?`)) {
+      try {
+        await deleteCourse(courseId);
+        // Courses will automatically update from the hook
+      } catch (error) {
+        console.error("Error deleting course:", error);
+        alert("שגיאה במחיקת הקורס. נסה שוב.");
+      }
+    }
   };
 
   // Filter and sort courses
@@ -179,15 +191,29 @@ export default function Dashboard() {
                           {course.name || "ללא שם קורס"}
                         </CardTitle>
                       </Link>
-                      <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
-                        <Button 
+                      <div className="flex gap-2 items-center">
+                        <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
+                          <Button 
+                            variant="outline"
+                            size="icon"
+                            className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Button
                           variant="outline"
                           size="icon"
                           className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDeleteCourse(course.id, course.name || "ללא שם קורס");
+                          }}
+                          title="מחק קורס"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      </Link>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">

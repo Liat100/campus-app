@@ -144,7 +144,7 @@ export default function CourseEditorPage() {
   const showCertificateFields = course.type === "certificate";
   const showNewNameField = course.nameChangeRequired;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validate with Zod
     const result = courseSchema.safeParse(course);
     if (!result.success) {
@@ -155,7 +155,7 @@ export default function CourseEditorPage() {
     try {
       if (isNewCourse) {
         // Create new course
-        const newCourse = createCourse({
+        const newCourse = await createCourse({
           name: course.name!,
           type: course.type!,
           nameChangeRequired: course.nameChangeRequired ?? false,
@@ -192,7 +192,7 @@ export default function CourseEditorPage() {
         alert(`קורס חדש נשמר בהצלחה!\n\nשם הקורס: ${newCourse.name}\nID: ${newCourse.id}`);
       } else {
         // Update existing course
-        const updatedCourse = updateCourse(Number(courseId), {
+        const updatedCourse = await updateCourse(Number(courseId), {
           name: course.name,
           type: course.type,
           nameChangeRequired: course.nameChangeRequired,
