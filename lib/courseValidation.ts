@@ -52,12 +52,14 @@ export function getMissingMandatoryFields(course: Partial<Course>): string[] {
       !validHomePageOptions.includes(course.homePageOption)) {
     missing.push("בחירה בעמוד הבית (חובה לבחור אחת מהאפשרויות)");
   } else {
-    if (course.homePageOption === "homePageFile" && (!course.homePageFile || course.homePageFile === "")) {
+    // For file upload options, check if courseFolderLink exists (user can click "פתח תיקיית קורס")
+    if (course.homePageOption === "homePageFile" && (!course.courseFolderLink || course.courseFolderLink === "")) {
       missing.push("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)");
     }
-    if (course.homePageOption === "aboutFile" && (!course.aboutFile || course.aboutFile === "")) {
+    if (course.homePageOption === "aboutFile" && (!course.courseFolderLink || course.courseFolderLink === "")) {
       missing.push("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)");
     }
+    // For link option, check if aboutPageLink is filled
     if (course.homePageOption === "aboutLink" && (!course.aboutPageLink || course.aboutPageLink === "")) {
       missing.push("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)");
     }
