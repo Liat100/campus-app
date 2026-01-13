@@ -191,16 +191,7 @@ export default function Dashboard() {
                           {course.name || "ללא שם קורס"}
                         </CardTitle>
                       </Link>
-                      <div className="flex gap-2 items-center">
-                        <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
-                          <Button 
-                            variant="outline"
-                            size="icon"
-                            className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                      <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="icon"
@@ -213,6 +204,15 @@ export default function Dashboard() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
+                          <Button 
+                            variant="outline"
+                            size="icon"
+                            className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   </CardHeader>

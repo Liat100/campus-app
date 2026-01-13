@@ -25,9 +25,6 @@ export function getMissingMandatoryFields(course: Partial<Course>): string[] {
     if (!course.gradingPercentages && !course.gradingFile) {
       missing.push("מודל ציונים (חובה לקורס עם תעודה)");
     }
-    if (course.clientLogoRequired && !course.clientLogo) {
-      missing.push("לוגו לקוח (חובה לקורס עם תעודה)");
-    }
     if (!course.signerRole) {
       missing.push("תפקיד החותם (חובה לקורס עם תעודה)");
     }
@@ -52,11 +49,11 @@ export function getMissingMandatoryFields(course: Partial<Course>): string[] {
       !validHomePageOptions.includes(course.homePageOption)) {
     missing.push("בחירה בעמוד הבית (חובה לבחור אחת מהאפשרויות)");
   } else {
-    // For file upload options, check if courseFolderLink exists (user can click "פתח תיקיית קורס")
-    if (course.homePageOption === "homePageFile" && (!course.courseFolderLink || course.courseFolderLink === "")) {
+    // For file upload options, check if the file field is filled (user clicks "פתח תיקיית קורס" to upload)
+    if (course.homePageOption === "homePageFile" && (!course.homePageFile || course.homePageFile === "")) {
       missing.push("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)");
     }
-    if (course.homePageOption === "aboutFile" && (!course.courseFolderLink || course.courseFolderLink === "")) {
+    if (course.homePageOption === "aboutFile" && (!course.aboutFile || course.aboutFile === "")) {
       missing.push("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)");
     }
     // For link option, check if aboutPageLink is filled
@@ -77,7 +74,7 @@ export function getMissingMandatoryFields(course: Partial<Course>): string[] {
 
   // Surveys validation
   if (!course.surveysAdded) {
-    missing.push("הוספת סקרי משוב (חובה לסמן)");
+    missing.push("הוספת סקרי שביעות רצון (חובה להוסיף לקורס ולאשר אחרי הוספה)");
   }
 
   return missing;

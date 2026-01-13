@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Course, courseSchema } from "@/lib/types";
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowRight, AlertCircle, CheckCircle2, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, AlertCircle, CheckCircle2, ExternalLink, ChevronDown, ChevronUp, RotateCcw, Trash2 } from "lucide-react";
 
 export default function CourseEditorPage() {
   const params = useParams();
@@ -68,6 +68,9 @@ export default function CourseEditorPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showImageSizes, setShowImageSizes] = useState(false);
   const [showCourseFolder, setShowCourseFolder] = useState(false);
+  const [showMissingFieldsDetails, setShowMissingFieldsDetails] = useState(false);
+  const [hasEstimatedLaunchDate, setHasEstimatedLaunchDate] = useState(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update form when existing course loads
   useEffect(() => {
@@ -102,6 +105,15 @@ export default function CourseEditorPage() {
     }
   }, [existingCourse]);
 
+  // Update hasEstimatedLaunchDate based on courseLaunchDate
+  useEffect(() => {
+    if (course.courseLaunchDate) {
+      setHasEstimatedLaunchDate(true);
+    } else {
+      setHasEstimatedLaunchDate(false);
+    }
+  }, [course.courseLaunchDate]);
+
   useEffect(() => {
     const missing = getMissingMandatoryFields(course);
     setMissingFields(missing);
@@ -129,6 +141,49 @@ export default function CourseEditorPage() {
     setCourse((prev) => ({ ...prev, [field]: checked }));
   };
 
+  const clearField = (field: keyof Course) => {
+    handleInputChange(field, "");
+  };
+
+  // Auto-save function (only for existing courses) - triggered on blur
+  const handleAutoSave = useCallback(async () => {
+    if (isNewCourse || isLoading || !existingCourse) {
+      return; // Don't auto-save new courses or while loading
+    }
+
+    try {
+      await updateCourse(Number(courseId), {
+        name: course.name,
+        type: course.type,
+        nameChangeRequired: course.nameChangeRequired,
+        newName: course.newName,
+        homePageOption: course.homePageOption,
+        homePageFile: course.homePageFile,
+        aboutFile: course.aboutFile,
+        aboutPageLink: course.aboutPageLink,
+        syllabusRequired: course.syllabusRequired,
+        learningHours: course.learningHours,
+        syllabusFile: course.syllabusFile,
+        surveysAdded: course.surveysAdded,
+        gradingPercentages: course.gradingPercentages,
+        gradingFile: course.gradingFile,
+        marketingImagesAvailable: course.marketingImagesAvailable,
+        marketingImagesLink: course.marketingImagesLink,
+        clientLogoRequired: course.clientLogoRequired,
+        clientLogo: course.clientLogo,
+        signerRole: course.signerRole,
+        signerName: course.signerName,
+        certificateSignature: course.certificateSignature,
+        supportContact: course.supportContact,
+        courseLaunchDate: course.courseLaunchDate,
+        additionalNotes: course.additionalNotes,
+        courseFolderLink: course.courseFolderLink,
+      });
+    } catch (error) {
+      console.error("Error auto-saving course:", error);
+    }
+  }, [course, courseId, isNewCourse, isLoading, existingCourse, updateCourse]);
+
   const isFieldMissing = (fieldName: string) => {
     return missingFields.includes(fieldName);
   };
@@ -141,8 +196,23 @@ export default function CourseEditorPage() {
     return !isFieldMissing(fieldName);
   };
 
+  const handleOpenCourseFolder = (fieldName: keyof Course) => {
+    if (course.courseFolderLink) {
+      window.open(course.courseFolderLink, '_blank');
+      // Mark the field as completed by setting it to a non-empty value
+      handleInputChange(fieldName, "uploaded");
+    }
+  };
+
   const showCertificateFields = course.type === "certificate";
   const showNewNameField = course.nameChangeRequired;
+
+  const handleSendEmail = () => {
+    const email = "liatk@experteam.co.il";
+    const subject = `עדכון קורס: ${course.name || "ללא שם"}`;
+    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+    window.location.href = mailtoLink;
+  };
 
   const handleSave = async () => {
     // Validate with Zod
@@ -233,14 +303,65 @@ export default function CourseEditorPage() {
           return;
         }
       }
-
-      // Navigate back to dashboard
-      router.push("/");
     } catch (error) {
       console.error("Error saving course:", error);
       alert("שגיאה בשמירת הקורס. נסה שוב.");
     }
   };
+
+  // Auto-save effect (only for existing courses, with debounce)
+  useEffect(() => {
+    if (isNewCourse || isLoading || !existingCourse) {
+      return; // Don't auto-save new courses or while loading
+    }
+
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Set new timeout for auto-save (2 seconds after last change)
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await updateCourse(Number(courseId), {
+          name: course.name,
+          type: course.type,
+          nameChangeRequired: course.nameChangeRequired,
+          newName: course.newName,
+          homePageOption: course.homePageOption,
+          homePageFile: course.homePageFile,
+          aboutFile: course.aboutFile,
+          aboutPageLink: course.aboutPageLink,
+          syllabusRequired: course.syllabusRequired,
+          learningHours: course.learningHours,
+          syllabusFile: course.syllabusFile,
+          surveysAdded: course.surveysAdded,
+          gradingPercentages: course.gradingPercentages,
+          gradingFile: course.gradingFile,
+          marketingImagesAvailable: course.marketingImagesAvailable,
+          marketingImagesLink: course.marketingImagesLink,
+          clientLogoRequired: course.clientLogoRequired,
+          clientLogo: course.clientLogo,
+          signerRole: course.signerRole,
+          signerName: course.signerName,
+          certificateSignature: course.certificateSignature,
+          supportContact: course.supportContact,
+          courseLaunchDate: course.courseLaunchDate,
+          additionalNotes: course.additionalNotes,
+          courseFolderLink: course.courseFolderLink,
+        });
+      } catch (error) {
+        console.error("Error auto-saving course:", error);
+      }
+    }, 2000); // Auto-save 2 seconds after last change
+
+    // Cleanup function
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [course, courseId, isNewCourse, isLoading, existingCourse, updateCourse]);
 
   // Show loading state while fetching course data
   if (!isNewCourse && isLoading) {
@@ -295,7 +416,7 @@ export default function CourseEditorPage() {
             <div className="relative flex items-center justify-start h-full text-right z-10" dir="rtl">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-indigo-950/80">
-                  {existingCourse ? "עריכת קורס" : "קורס חדש"}
+                  {existingCourse ? "עדכון פרטי עליה לאוויר עבור קורס:" : "קורס חדש"}
                 </p>
                 {existingCourse && course.name && (
                   <h1 className="text-2xl font-extrabold tracking-tight text-indigo-950">
@@ -307,31 +428,84 @@ export default function CourseEditorPage() {
           </div>
         </div>
 
+        {/* Explanation paragraph */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-right" dir="rtl">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            זהו טופס עליה לאוויר עבור קורס {course.name ? <span className="font-semibold">{course.name}</span> : "חדש"}. יש למלא את שדות החובה בטופס ולשמור בכפתור בתחתית העמוד. ניתן לעדכן על סיום המילוי או על שאלות ביניים בכפתור שליחת מייל בתחתית העמוד.
+          </p>
+        </div>
+
         {/* Status Banner */}
         {isReady ? (
           <Card className="mb-6 border-emerald-200 bg-emerald-50">
-            <CardContent className="flex items-center gap-3 p-4">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              <div>
-                <p className="font-semibold text-emerald-900">הקורס מוכן להשקה! ✅</p>
-                <p className="text-sm text-emerald-700">
-                  כל השדות החובה מולאו בהצלחה
-                </p>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <div className="flex-1">
+                  <p className="font-semibold text-emerald-900">הקורס מוכן להשקה! ✅</p>
+                  <p className="text-sm text-emerald-700">
+                    כל השדות החובה מולאו בהצלחה
+                  </p>
+                </div>
+                {missingFields.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMissingFieldsDetails(!showMissingFieldsDetails)}
+                    className="gap-2"
+                  >
+                    לפרטים החסרים
+                    {showMissingFieldsDetails ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         ) : (
           <Card className="mb-6 border-red-200 bg-red-50">
-            <CardContent className="flex items-center gap-3 p-4">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="font-semibold text-red-900">הקורס לא מוכן להשקה ❌</p>
-                <p className="text-sm text-red-700">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900">הקורס עדיין לא מוכן להשקה ❌</p>
                   {missingFields.length > 0 && (
-                    <>חסרים {missingFields.length} שדות חובה: {missingFields.join(", ")}</>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-sm text-red-700">
+                        חסרים {missingFields.length} שדות חובה
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowMissingFieldsDetails(!showMissingFieldsDetails)}
+                        className="gap-1 h-7 px-2 text-xs"
+                      >
+                        לפרטים החסרים
+                        {showMissingFieldsDetails ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
                   )}
-                </p>
+                </div>
               </div>
+              {showMissingFieldsDetails && missingFields.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-red-200">
+                  <p className="text-sm font-semibold text-red-900 mb-2">שדות חסרים:</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                    {missingFields.map((field, index) => (
+                      <li key={index}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -346,58 +520,97 @@ export default function CourseEditorPage() {
             <CardContent className="space-y-4 text-right">
               <div className="space-y-2">
                 <Label htmlFor="name">
-                  שם הקורס <span className={isFieldComplete("שם הקורס") ? "text-emerald-500" : "text-red-500"}>*</span>
+                  שם הקורס <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("שם הקורס") ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
-                <Input
-                  id="name"
-                  value={course.name || ""}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  className={
-                    isFieldMissing("שם הקורס") || hasError("name")
-                      ? "border-red-500"
-                      : ""
-                  }
-                  placeholder="הכנס שם קורס"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="name"
+                    value={course.name || ""}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    onBlur={handleAutoSave}
+                    className={
+                      isFieldMissing("שם הקורס") || hasError("name")
+                        ? "border-red-500"
+                        : ""
+                    }
+                    placeholder="הכנס שם קורס"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => clearField("name")}
+                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                    title="מחק את השדה"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
                 {hasError("name") && (
                   <p className="text-sm text-red-500">{errors.name}</p>
                 )}
               </div>
 
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="nameChangeRequired"
-                  checked={course.nameChangeRequired ?? false}
-                  onCheckedChange={(checked) =>
-                    handleCheckboxChange("nameChangeRequired", checked === true)
-                  }
-                />
-                <Label
-                  htmlFor="nameChangeRequired"
-                  className={`cursor-pointer ${
-                    isFieldMissing("האם נדרש שינוי שם") ? "text-red-500" : ""
-                  }`}
-                >
-                  נדרש שינוי שם <span className={course.nameChangeRequired ? "text-emerald-500" : "text-red-500"}>*</span>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">
+                  האם נדרש לקורס שינוי שם?
                 </Label>
+                <div className="flex items-center gap-6 space-x-reverse">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="nameChangeNo"
+                      name="nameChangeRequired"
+                      value="no"
+                      checked={!course.nameChangeRequired}
+                      onChange={() => handleInputChange("nameChangeRequired", false)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="nameChangeNo" className="cursor-pointer">
+                      לא
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="nameChangeYes"
+                      name="nameChangeRequired"
+                      value="yes"
+                      checked={course.nameChangeRequired === true}
+                      onChange={() => handleInputChange("nameChangeRequired", true)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="nameChangeYes" className="cursor-pointer">
+                      כן
+                    </Label>
+                  </div>
+                </div>
               </div>
 
               {showNewNameField && (
                 <div className="mr-4 space-y-2 border-r-2 pr-4">
                   <Label htmlFor="newName">
-                    שם חדש <span className={isFieldComplete("שם חדש (נדרש כאשר נדרש שינוי שם)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    שם חדש <span className="text-gray-500 font-normal">(שדה רשות)</span>
                   </Label>
-                  <Input
-                    id="newName"
-                    value={course.newName || ""}
-                    onChange={(e) => handleInputChange("newName", e.target.value)}
-                    className={
-                      isFieldMissing("שם חדש (נדרש כאשר נדרש שינוי שם)")
-                        ? "border-red-500"
-                        : ""
-                    }
-                    placeholder="הכנס שם חדש"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="newName"
+                      value={course.newName || ""}
+                      onChange={(e) => handleInputChange("newName", e.target.value)}
+                      onBlur={handleAutoSave}
+                      placeholder="הכנס שם חדש"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => clearField("newName")}
+                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      title="מחק את השדה"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -412,7 +625,7 @@ export default function CourseEditorPage() {
             <CardContent className="space-y-4 text-right">
               <div className="space-y-2">
                 <Label htmlFor="type">
-                  סוג קורס <span className={course.type && course.type !== "no_certificate" ? "text-emerald-500" : "text-red-500"}>*</span>
+                  סוג קורס <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={course.type && course.type !== "no_certificate" ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
                 <Select
                   value={course.type}
@@ -445,40 +658,49 @@ export default function CourseEditorPage() {
                   <div className="mr-4 space-y-4 border-r-2 pr-4">
                     <div className="space-y-2">
                       <Label htmlFor="gradingPercentages">
-                        פירוט על מודל הציונים <span className={isFieldComplete("מודל ציונים (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                        פירוט על מודל הציונים <span className="text-gray-500 font-normal">(חובה למלא אחד מהשדות)</span>
                       </Label>
-                      <Textarea
-                        id="gradingPercentages"
-                        value={course.gradingPercentages || ""}
-                        onChange={(e) => handleInputChange("gradingPercentages", e.target.value)}
-                        className={
-                          isFieldMissing("מודל ציונים (חובה לקורס עם תעודה)")
-                            ? "border-red-500"
-                            : ""
-                        }
-                        placeholder="לדוגמא: 70% מבחן, 10% מטלה 1, 10% מטלה 2, 10% מטלה 3"
-                        rows={3}
-                      />
+                      <div className="flex items-start gap-2">
+                        <Textarea
+                          id="gradingPercentages"
+                          value={course.gradingPercentages || ""}
+                          onChange={(e) => handleInputChange("gradingPercentages", e.target.value)}
+                          onBlur={handleAutoSave}
+                          className={
+                            isFieldMissing("מודל ציונים (חובה לקורס עם תעודה)")
+                              ? "border-red-500"
+                              : ""
+                          }
+                          placeholder="לדוגמא: 70% מבחן, 10% מטלה 1, 10% מטלה 2, 10% מטלה 3"
+                          rows={3}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => clearField("gradingPercentages")}
+                          className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                          title="מחק את השדה"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                       {hasError("gradingPercentages") && (
                         <p className="text-sm text-red-500">{errors.gradingPercentages}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>או העלה קובץ מודל ציונים</Label>
-                      <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                      <Label>או העלה קובץ מודל ציונים <span className="text-gray-500 font-normal">(חובה למלא אחד מהשדות)</span></Label>
+                      <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הקורס שבדרייב</p>
                       <Button
                         type="button"
-                        onClick={() => {
-                          if (course.courseFolderLink) {
-                            window.open(course.courseFolderLink, '_blank');
-                          }
-                        }}
+                        onClick={() => handleOpenCourseFolder("gradingFile")}
                         disabled={!course.courseFolderLink}
                         variant="outline"
-                        className="h-8 px-3 text-xs"
+                        className="h-10 px-4 text-sm"
                       >
-                        <ExternalLink className="ml-2 h-3 w-3" />
+                        <ExternalLink className="ml-2 h-4 w-4" />
                         פתח תיקיית קורס
                       </Button>
                     </div>
@@ -492,16 +714,29 @@ export default function CourseEditorPage() {
                       <h5 className="text-sm text-gray-700">פרטי החותם על התעודה:</h5>
                       <div className="space-y-2">
                         <Label htmlFor="signerRole">
-                          תפקיד החותם: <span className={isFieldComplete("תפקיד החותם (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                          תפקיד החותם והאירגון: <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("תפקיד החותם (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                         </Label>
-                        <Input
-                          id="signerRole"
-                          type="text"
-                          value={course.signerRole || ""}
-                          onChange={(e) => handleInputChange("signerRole", e.target.value)}
-                          placeholder="לדוגמה: מנהל מחלקת הדרכה"
-                          className={hasError("signerRole") ? "border-red-500" : ""}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="signerRole"
+                            type="text"
+                            value={course.signerRole || ""}
+                            onChange={(e) => handleInputChange("signerRole", e.target.value)}
+                            onBlur={handleAutoSave}
+                            placeholder="לדוגמה: מנכ&quot;ל במשרד הרווחה"
+                            className={hasError("signerRole") ? "border-red-500" : ""}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => clearField("signerRole")}
+                            className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                            title="מחק את השדה"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                         {hasError("signerRole") && (
                           <p className="text-sm text-red-500">{errors.signerRole}</p>
                         )}
@@ -509,16 +744,29 @@ export default function CourseEditorPage() {
                       
                       <div className="space-y-2">
                         <Label htmlFor="signerName">
-                          שם החותם: <span className={isFieldComplete("שם החותם (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                          שם החותם: <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("שם החותם (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                         </Label>
-                        <Input
-                          id="signerName"
-                          type="text"
-                          value={course.signerName || ""}
-                          onChange={(e) => handleInputChange("signerName", e.target.value)}
-                          placeholder="לדוגמה: יוסף כהן"
-                          className={hasError("signerName") ? "border-red-500" : ""}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="signerName"
+                            type="text"
+                            value={course.signerName || ""}
+                            onChange={(e) => handleInputChange("signerName", e.target.value)}
+                            onBlur={handleAutoSave}
+                            placeholder="לדוגמה: יוסף כהן"
+                            className={hasError("signerName") ? "border-red-500" : ""}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => clearField("signerName")}
+                            className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                            title="מחק את השדה"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                         {hasError("signerName") && (
                           <p className="text-sm text-red-500">{errors.signerName}</p>
                         )}
@@ -526,48 +774,62 @@ export default function CourseEditorPage() {
 
                       <div className="space-y-2">
                         <Label>
-                          קובץ החתימה <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                          קובץ החתימה <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                         </Label>
                         <p className="text-sm text-gray-600 mb-2">
                           <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span> יש לעלות את חתימת החותם על רקע שקוף
                         </p>
-                        <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                        <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הקורס שבדרייב</p>
                         <Button
                           type="button"
-                          onClick={() => {
-                            if (course.courseFolderLink) {
-                              window.open(course.courseFolderLink, '_blank');
-                            }
-                          }}
+                          onClick={() => handleOpenCourseFolder("certificateSignature")}
                           disabled={!course.courseFolderLink}
                           variant="outline"
-                          className="h-8 px-3 text-xs"
+                          className="h-10 px-4 text-sm"
                         >
-                          <ExternalLink className="ml-2 h-3 w-3" />
+                          <ExternalLink className="ml-2 h-4 w-4" />
                           פתח תיקיית קורס
                         </Button>
                       </div>
 
                       {/* Client Logo - optional */}
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2 space-x-reverse">
-                          <Checkbox
-                            id="clientLogoRequired"
-                            checked={course.clientLogoRequired ?? false}
-                            onCheckedChange={(checked) =>
-                              handleCheckboxChange("clientLogoRequired", checked === true)
-                            }
-                          />
-                          <Label
-                            htmlFor="clientLogoRequired"
-                            className="cursor-pointer"
-                          >
-                            לוגו לקוח
-                          </Label>
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">
+                          האם נדרש לוגו לקוח על התעודה? <span className="text-gray-500 font-normal">(שדה רשות)</span>
+                        </Label>
+                        <div className="flex items-center gap-6 space-x-reverse">
+                          <div className="flex items-center space-x-2 space-x-reverse">
+                            <input
+                              type="radio"
+                              id="clientLogoNo"
+                              name="clientLogoRequired"
+                              value="no"
+                              checked={!course.clientLogoRequired}
+                              onChange={() => handleInputChange("clientLogoRequired", false)}
+                              className="cursor-pointer"
+                            />
+                            <Label htmlFor="clientLogoNo" className="cursor-pointer">
+                              לא
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2 space-x-reverse">
+                            <input
+                              type="radio"
+                              id="clientLogoYes"
+                              name="clientLogoRequired"
+                              value="yes"
+                              checked={course.clientLogoRequired === true}
+                              onChange={() => handleInputChange("clientLogoRequired", true)}
+                              className="cursor-pointer"
+                            />
+                            <Label htmlFor="clientLogoYes" className="cursor-pointer">
+                              כן
+                            </Label>
+                          </div>
                         </div>
                         {course.clientLogoRequired && (
                           <div className="space-y-2">
-                            <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                            <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הקורס בדרייב</p>
                             <Button
                               type="button"
                               onClick={() => {
@@ -577,15 +839,17 @@ export default function CourseEditorPage() {
                               }}
                               disabled={!course.courseFolderLink}
                               variant="outline"
-                              className="h-8 px-3 text-xs"
+                              className="h-10 px-4 text-sm"
                             >
-                              <ExternalLink className="ml-2 h-3 w-3" />
+                              <ExternalLink className="ml-2 h-4 w-4" />
                               פתח תיקיית קורס
                             </Button>
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                              <p className="text-sm text-blue-800">
+                                דורש בירור מול קמפוס
+                              </p>
+                            </div>
                           </div>
-                        )}
-                        {hasError("clientLogo") && (
-                          <p className="text-sm text-red-500">{errors.clientLogo}</p>
                         )}
                       </div>
                     </div>
@@ -669,21 +933,17 @@ export default function CourseEditorPage() {
               {course.homePageOption === "homePageFile" && (
                 <div className="space-y-2">
                   <Label>
-                    קובץ פרטי עמוד הבית <span className={isFieldComplete("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    קובץ פרטי עמוד הבית <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("קובץ פרטי עמוד הבית (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
                   </Label>
-                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הקורס שבדרייב</p>
                   <Button
                     type="button"
-                    onClick={() => {
-                      if (course.courseFolderLink) {
-                        window.open(course.courseFolderLink, '_blank');
-                      }
-                    }}
+                    onClick={() => handleOpenCourseFolder("homePageFile")}
                     disabled={!course.courseFolderLink}
                     variant="outline"
-                    className="h-8 px-3 text-xs"
+                    className="h-10 px-4 text-sm"
                   >
-                    <ExternalLink className="ml-2 h-3 w-3" />
+                    <ExternalLink className="ml-2 h-4 w-4" />
                     פתח תיקיית קורס
                   </Button>
                 </div>
@@ -692,21 +952,17 @@ export default function CourseEditorPage() {
               {course.homePageOption === "aboutFile" && (
                 <div className="space-y-2">
                   <Label>
-                    קובץ עמוד אודות <span className={isFieldComplete("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    קובץ עמוד אודות <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("קובץ עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
                   </Label>
-                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הדרייב</p>
+                  <p className="text-sm text-gray-500">אנא העלה את הקובץ לתיקיית הקורס שבדרייב</p>
                   <Button
                     type="button"
-                    onClick={() => {
-                      if (course.courseFolderLink) {
-                        window.open(course.courseFolderLink, '_blank');
-                      }
-                    }}
+                    onClick={() => handleOpenCourseFolder("aboutFile")}
                     disabled={!course.courseFolderLink}
                     variant="outline"
-                    className="h-8 px-3 text-xs"
+                    className="h-10 px-4 text-sm"
                   >
-                    <ExternalLink className="ml-2 h-3 w-3" />
+                    <ExternalLink className="ml-2 h-4 w-4" />
                     פתח תיקיית קורס
                   </Button>
                 </div>
@@ -715,99 +971,38 @@ export default function CourseEditorPage() {
               {course.homePageOption === "aboutLink" && (
                 <div className="space-y-2">
                   <Label htmlFor="aboutPageLink">
-                    קישור עמוד אודות <span className={isFieldComplete("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    קישור עמוד אודות <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ? "text-emerald-500" : "text-red-500"}>*</span>
                   </Label>
-                  <Input
-                    id="aboutPageLink"
-                    type="text"
-                    value={course.aboutPageLink || ""}
-                    onChange={(e) => handleInputChange("aboutPageLink", e.target.value)}
-                    placeholder="לדוגמה: https://example.com/about"
-                    className={
-                      isFieldMissing("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ||
-                      hasError("aboutPageLink")
-                        ? "border-red-500"
-                        : ""
-                    }
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="aboutPageLink"
+                      type="text"
+                      value={course.aboutPageLink || ""}
+                      onChange={(e) => handleInputChange("aboutPageLink", e.target.value)}
+                      onBlur={handleAutoSave}
+                      placeholder="לדוגמה: https://example.com/about"
+                      className={
+                        isFieldMissing("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ||
+                        hasError("aboutPageLink")
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => clearField("aboutPageLink")}
+                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      title="מחק את השדה"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                   {hasError("aboutPageLink") && (
                     <p className="text-sm text-red-500">{errors.aboutPageLink}</p>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Section 4: Syllabus */}
-          <Card>
-            <CardHeader>
-              <CardTitle>סילבוס קורס</CardTitle>
-              <CardDescription>פרטי תכנית הלימודים של הקורס</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-right">
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="syllabusRequired"
-                  checked={course.syllabusRequired ?? false}
-                  onCheckedChange={(checked) =>
-                    handleCheckboxChange("syllabusRequired", checked === true)
-                  }
-                />
-                <Label
-                  htmlFor="syllabusRequired"
-                  className={`cursor-pointer ${
-                    isFieldMissing("תכנית לימודים נדרשת") ? "text-red-500" : ""
-                  }`}
-                >
-                  סילבוס נדרש
-                </Label>
-              </div>
-
-              {course.syllabusRequired && (
-                <>
-                  <div className="space-y-2">
-                    <Label>
-                      העלה מסמך סילבוס הכולל שעות לימוד לכל פרק ואחוז מהציון (במקרה של תעודה) <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
-                    </Label>
-                    <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הדרייב</p>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        if (course.courseFolderLink) {
-                          window.open(course.courseFolderLink, '_blank');
-                        }
-                      }}
-                      disabled={!course.courseFolderLink}
-                      variant="outline"
-                      className="h-8 px-3 text-xs"
-                    >
-                      <ExternalLink className="ml-2 h-3 w-3" />
-                      פתח תיקיית קורס
-                    </Button>
-                  </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="learningHours">
-                        פירוט על שעות הלמידה בקורס <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
-                      </Label>
-                      <Textarea
-                        id="learningHours"
-                        value={course.learningHours || ""}
-                        onChange={(e) => handleInputChange("learningHours", e.target.value)}
-                        placeholder="דוגמה: סה&quot;כ שעות 300 שעות, 20 שעות פרק 1, 50 שעות פרק 2, 30 שעות פרק 3, 40 שעות פרק 4..."
-                        className={
-                          isFieldMissing("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)")
-                            ? "border-red-500"
-                            : ""
-                        }
-                        rows={4}
-                      />
-                    </div>
-
-                  <p className="text-sm text-gray-600 mt-2">
-                    ניתן לספק אחת מהאופציות - לא נדרש למלא את שתיהן
-                  </p>
-                </>
               )}
             </CardContent>
           </Card>
@@ -819,65 +1014,93 @@ export default function CourseEditorPage() {
               <CardDescription>תמונות שיווקיות לקורס</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-right">
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="marketingImagesAvailable"
-                  checked={course.marketingImagesAvailable ?? false}
-                  onCheckedChange={(checked) =>
-                    handleCheckboxChange("marketingImagesAvailable", checked === true)
-                  }
-                  className={
-                    isFieldMissing("תמונות שיווקיות (חובה לסמן)") ? "border-red-500" : ""
-                  }
-                />
-                <Label 
-                  htmlFor="marketingImagesAvailable" 
-                  className={`cursor-pointer ${
-                    isFieldMissing("תמונות שיווקיות (חובה לסמן)") ? "text-red-500" : ""
-                  }`}
-                >
-                  תמונות שיווקיות זמינות <span className={isFieldComplete("תמונות שיווקיות (חובה לסמן)") ? "text-emerald-500" : "text-red-500"}>*</span>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">
+                  האם יש לקורס תמונות שיווקיות מוכנות? <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("תמונות שיווקיות (חובה לסמן)") ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
+                <div className="flex items-center gap-6 space-x-reverse">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="marketingImagesNo"
+                      name="marketingImagesAvailable"
+                      value="no"
+                      checked={!course.marketingImagesAvailable}
+                      onChange={() => handleInputChange("marketingImagesAvailable", false)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="marketingImagesNo" className="cursor-pointer">
+                      לא
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="marketingImagesYes"
+                      name="marketingImagesAvailable"
+                      value="yes"
+                      checked={course.marketingImagesAvailable === true}
+                      onChange={() => handleInputChange("marketingImagesAvailable", true)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="marketingImagesYes" className="cursor-pointer">
+                      כן
+                    </Label>
+                  </div>
+                </div>
               </div>
 
               {course.marketingImagesAvailable && (
                 <div className="space-y-2">
-                  <Label htmlFor="marketingImagesLink">קישור לתמונות שיווקיות</Label>
-                  <Input
-                    id="marketingImagesLink"
-                    type="url"
-                    value={course.marketingImagesLink || ""}
-                    onChange={(e) => handleInputChange("marketingImagesLink", e.target.value)}
-                    placeholder="https://example.com/images"
-                    className={hasError("marketingImagesLink") ? "border-red-500" : ""}
-                  />
+                  <Label htmlFor="marketingImagesLink">קישור לתמונות שיווקיות <span className="text-gray-500 font-normal">(שדה רשות)</span></Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="marketingImagesLink"
+                      type="url"
+                      value={course.marketingImagesLink || ""}
+                      onChange={(e) => handleInputChange("marketingImagesLink", e.target.value)}
+                      onBlur={handleAutoSave}
+                      placeholder="https://example.com/images"
+                      className={hasError("marketingImagesLink") ? "border-red-500" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => clearField("marketingImagesLink")}
+                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      title="מחק את השדה"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                   {hasError("marketingImagesLink") && (
                     <p className="text-sm text-red-500">{errors.marketingImagesLink}</p>
                   )}
-                  
-                  <div className="mt-4">
-                    <Button
-                      type="button"
-                      onClick={() => setShowImageSizes(!showImageSizes)}
-                      className="mb-2 h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
-                    >
-                      לחצו לראות את גדלי התמונות הנדרשים
-                    </Button>
-                    
-                    {showImageSizes && (
-                      <div className="mt-3 space-y-2 p-3 bg-gray-50 rounded-md border">
-                        <p className="text-sm font-medium text-gray-700 mb-2">מידע על גדלי תמונות שיווקיות:</p>
-                        <div className="text-sm text-gray-600 space-y-1 pr-4">
-                          <p>תמונת הקורס: 500X250 (גודל עד 50 KB)</p>
-                          <p>באנר דסקטופ: 1440X400 (גודל עד 60-80 KB)</p>
-                          <p>באנר מובייל: 425X225 (גודל עד 50KB)</p>
-                          <p>תמונה שיווקית: 1200X1200</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
+
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => setShowImageSizes(!showImageSizes)}
+                  className="mb-2 h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
+                >
+                  לחצו לראות את גדלי התמונות הנדרשים
+                </Button>
+                
+                {showImageSizes && (
+                  <div className="mt-3 space-y-2 p-3 bg-gray-50 rounded-md border">
+                    <p className="text-sm font-medium text-gray-700 mb-2">מידע על גדלי תמונות שיווקיות:</p>
+                    <div className="text-sm text-gray-600 space-y-1 pr-4">
+                      <p>תמונת הקורס: 500X250 (גודל עד 50 KB)</p>
+                      <p>באנר דסקטופ: 1440X400 (גודל עד 60-80 KB)</p>
+                      <p>באנר מובייל: 425X225 (גודל עד 50KB)</p>
+                      <p>תמונה שיווקית: 1200X1200</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -890,20 +1113,33 @@ export default function CourseEditorPage() {
             <CardContent className="space-y-4 text-right">
               <div className="space-y-2">
                 <Label htmlFor="supportContact">
-                  פרטי יצירת קשר <span className={isFieldComplete("פרטי לשונית תמיכה (חובה למלא)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                  פרטי יצירת קשר <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("פרטי לשונית תמיכה (חובה למלא)") ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
-                <Input
-                  id="supportContact"
-                  type="text"
-                  value={course.supportContact || ""}
-                  onChange={(e) => handleInputChange("supportContact", e.target.value)}
-                  placeholder="לדוגמה: support@example.com"
-                  className={
-                    isFieldMissing("פרטי לשונית תמיכה (חובה למלא)") || hasError("supportContact")
-                      ? "border-red-500"
-                      : ""
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="supportContact"
+                    type="text"
+                    value={course.supportContact || ""}
+                    onChange={(e) => handleInputChange("supportContact", e.target.value)}
+                    onBlur={handleAutoSave}
+                    placeholder="לדוגמה: support@example.com"
+                    className={
+                      isFieldMissing("פרטי לשונית תמיכה (חובה למלא)") || hasError("supportContact")
+                        ? "border-red-500"
+                        : ""
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => clearField("supportContact")}
+                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                    title="מחק את השדה"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
                 {(isFieldMissing("פרטי לשונית תמיכה (חובה למלא)") || hasError("supportContact")) && (
                   <p className="text-sm text-red-500">
                     {errors.supportContact || "שדה זה חובה"}
@@ -916,62 +1152,221 @@ export default function CourseEditorPage() {
           {/* Section 5: Surveys */}
           <Card>
             <CardHeader>
-              <CardTitle>הוספת סקרי משוב</CardTitle>
-              <CardDescription>מעקב אחר הוספת סקרי משוב לקורס</CardDescription>
+              <CardTitle>הוספת סקרי שביעות רצון</CardTitle>
+              <CardDescription>מעקב אחר הוספת סקרי שביעות רצון לקורס</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-right">
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="surveysAdded"
-                  checked={course.surveysAdded ?? false}
-                  onCheckedChange={(checked) =>
-                    handleCheckboxChange("surveysAdded", checked === true)
-                  }
-                  className={
-                    isFieldMissing("הוספת סקרי משוב (חובה לסמן)") ? "border-red-500" : ""
-                  }
-                />
-                <Label 
-                  htmlFor="surveysAdded" 
-                  className={`cursor-pointer ${
-                    isFieldMissing("הוספת סקרי משוב (חובה לסמן)") ? "text-red-500" : ""
-                  }`}
-                >
-                  סקרי משוב נוספו <span className={isFieldComplete("הוספת סקרי משוב (חובה לסמן)") ? "text-emerald-500" : "text-red-500"}>*</span>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">
+                  האם סקרי שביעות רצון הוכנסו לקורס? <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("הוספת סקרי שביעות רצון (חובה להוסיף לקורס ולאשר אחרי הוספה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
+                <div className="flex items-center gap-6 space-x-reverse">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="surveysNo"
+                      name="surveysAdded"
+                      value="no"
+                      checked={!course.surveysAdded}
+                      onChange={() => handleInputChange("surveysAdded", false)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="surveysNo" className="cursor-pointer">
+                      לא
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="surveysYes"
+                      name="surveysAdded"
+                      value="yes"
+                      checked={course.surveysAdded === true}
+                      onChange={() => handleInputChange("surveysAdded", true)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="surveysYes" className="cursor-pointer">
+                      כן
+                    </Label>
+                  </div>
+                </div>
+                {course.surveysAdded === false && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                      יש לזכור להוסיף סקרי שביעות רצון לפני עליה לאוויר
+                    </p>
+                  </div>
+                )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 4: Syllabus */}
+          <Card>
+            <CardHeader>
+              <CardTitle>סילבוס קורס</CardTitle>
+              <CardDescription>פרטי תכנית הלימודים של הקורס</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-right">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">
+                  האם יש צורך לעלות קובץ סילבוס מעוצב לעמוד הבית של הקורס? <span className="text-gray-500 font-normal">(שדה רשות)</span>
+                </Label>
+                <div className="flex items-center gap-6 space-x-reverse">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="syllabusNo"
+                      name="syllabusRequired"
+                      value="no"
+                      checked={!course.syllabusRequired}
+                      onChange={() => handleInputChange("syllabusRequired", false)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="syllabusNo" className="cursor-pointer">
+                      לא
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="syllabusYes"
+                      name="syllabusRequired"
+                      value="yes"
+                      checked={course.syllabusRequired === true}
+                      onChange={() => handleInputChange("syllabusRequired", true)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="syllabusYes" className="cursor-pointer">
+                      כן
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {course.syllabusRequired && (
+                <>
+                  <div className="space-y-2">
+                    <Label>
+                      העלה מסמך סילבוס הכולל שעות לימוד לכל פרק ואחוז מהציון (במקרה של תעודה) <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    </Label>
+                    <p className="text-sm text-gray-500 mb-2">אנא העלה את הקובץ לתיקיית הקורס שבדרייב</p>
+                    <Button
+                      type="button"
+                      onClick={() => handleOpenCourseFolder("syllabusFile")}
+                      disabled={!course.courseFolderLink}
+                      variant="outline"
+                      className="h-10 px-4 text-sm"
+                    >
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                      פתח תיקיית קורס
+                    </Button>
+                  </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="learningHours">
+                        במידת הצורך פרט כאן על שעות הלמידה בקורס <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                      </Label>
+                      <div className="flex items-start gap-2">
+                        <Textarea
+                          id="learningHours"
+                          value={course.learningHours || ""}
+                          onChange={(e) => handleInputChange("learningHours", e.target.value)}
+                          onBlur={handleAutoSave}
+                          placeholder="דוגמה: סה&quot;כ שעות 300 שעות, 20 שעות פרק 1, 50 שעות פרק 2, 30 שעות פרק 3, 40 שעות פרק 4..."
+                          className={
+                            isFieldMissing("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)")
+                              ? "border-red-500"
+                              : ""
+                          }
+                          rows={4}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => clearField("learningHours")}
+                          className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                          title="מחק את השדה"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    ניתן לספק אחת מהאופציות - לא נדרש למלא את שתיהן
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           {/* Section 8: Course Launch Date */}
           <Card>
             <CardHeader>
-              <CardTitle>פתיחת קורס ללומדים</CardTitle>
-              <CardDescription>תאריך פתיחת הקורס ללומדים</CardDescription>
+              <CardTitle>תאריך פתיחת קורס ללומדים</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-right">
-              <div className="space-y-2">
-                <Label htmlFor="courseLaunchDate">
-                  באיזה תאריך יש לפתוח את הקורס ללומדים?
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">
+                  האם יש צורך בתאריך משוער לפתיחת הקורס ללומדים? <span className="text-gray-500 font-normal">(שדה רשות)</span>
                 </Label>
-                <div className="flex justify-start text-left">
-                  <Input
-                    id="courseLaunchDate"
-                    type="date"
-                    value={
-                      course.courseLaunchDate
-                        ? new Date(course.courseLaunchDate).toISOString().split("T")[0]
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : undefined;
-                      handleInputChange("courseLaunchDate", date);
-                    }}
-                    className={`w-auto ${hasError("courseLaunchDate") ? "border-red-500" : ""}`}
-                  />
+                <div className="flex items-center gap-6 space-x-reverse">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="hasEstimatedDateNo"
+                      name="hasEstimatedLaunchDate"
+                      value="no"
+                      checked={!hasEstimatedLaunchDate}
+                      onChange={() => {
+                        setHasEstimatedLaunchDate(false);
+                        handleInputChange("courseLaunchDate", undefined);
+                      }}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="hasEstimatedDateNo" className="cursor-pointer">
+                      לא
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <input
+                      type="radio"
+                      id="hasEstimatedDateYes"
+                      name="hasEstimatedLaunchDate"
+                      value="yes"
+                      checked={hasEstimatedLaunchDate}
+                      onChange={() => setHasEstimatedLaunchDate(true)}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="hasEstimatedDateYes" className="cursor-pointer">
+                      כן
+                    </Label>
+                  </div>
                 </div>
-                {hasError("courseLaunchDate") && (
-                  <p className="text-sm text-red-500">{errors.courseLaunchDate}</p>
+                {hasEstimatedLaunchDate && (
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="courseLaunchDate">
+                      באיזה תאריך יש לפתוח את הקורס ללומדים? <span className="text-gray-500 font-normal">(שדה רשות)</span>
+                    </Label>
+                    <div className="flex justify-start text-left">
+                      <Input
+                        id="courseLaunchDate"
+                        type="date"
+                        value={
+                          course.courseLaunchDate
+                            ? new Date(course.courseLaunchDate).toISOString().split("T")[0]
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : undefined;
+                          handleInputChange("courseLaunchDate", date);
+                        }}
+                        className="w-auto"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -986,16 +1381,29 @@ export default function CourseEditorPage() {
             <CardContent className="space-y-4 text-right">
               <div className="space-y-2">
                 <Label htmlFor="additionalNotes">
-                  פרטים נוספים
+                  פרטים נוספים <span className="text-gray-500 font-normal">(שדה רשות)</span>
                 </Label>
-                <Textarea
-                  id="additionalNotes"
-                  value={course.additionalNotes || ""}
-                  onChange={(e) => handleInputChange("additionalNotes", e.target.value)}
-                  placeholder="הוסף פרטים נוספים, הערות או מידע נוסף על הקורס..."
-                  className="min-h-[100px]"
-                  dir="rtl"
-                />
+                <div className="flex items-start gap-2">
+                  <Textarea
+                    id="additionalNotes"
+                    value={course.additionalNotes || ""}
+                    onChange={(e) => handleInputChange("additionalNotes", e.target.value)}
+                    onBlur={handleAutoSave}
+                    placeholder="הוסף פרטים נוספים, הערות או מידע נוסף על הקורס..."
+                    className="min-h-[100px]"
+                    dir="rtl"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => clearField("additionalNotes")}
+                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                    title="מחק את השדה"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1057,10 +1465,21 @@ export default function CourseEditorPage() {
                         type="url"
                         value={course.courseFolderLink || ""}
                         onChange={(e) => handleInputChange("courseFolderLink", e.target.value)}
+                        onBlur={handleAutoSave}
                         placeholder="https://drive.google.com/drive/folders/..."
                         className="flex-1"
                         dir="ltr"
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => clearField("courseFolderLink")}
+                        className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                        title="מחק את השדה"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         type="button"
                         onClick={() => {
@@ -1070,6 +1489,7 @@ export default function CourseEditorPage() {
                         }}
                         disabled={!course.courseFolderLink}
                         variant="outline"
+                        className="h-10 px-4 text-sm"
                       >
                         <ExternalLink className="ml-2 h-4 w-4" />
                         פתח תיקיית קורס
@@ -1083,14 +1503,17 @@ export default function CourseEditorPage() {
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-4">
-            <Link href="/">
-              <Button variant="outline">ביטול</Button>
-            </Link>
+            <Button
+              onClick={handleSendEmail}
+              className="px-6 font-semibold"
+            >
+              שלח עדכון למייל
+            </Button>
             <Button
               onClick={handleSave}
               className="px-6 font-semibold"
             >
-              שמור וחזור
+              שמור
             </Button>
           </div>
         </div>
