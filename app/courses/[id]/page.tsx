@@ -873,8 +873,8 @@ export default function CourseEditorPage() {
               {isFieldMissing("בחירה בעמוד הבית (חובה לבחור אחת מהאפשרויות)") && (
                 <p className="text-sm text-red-500 mb-2">חובה לבחור אחת מהאפשרויות</p>
               )}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2 space-x-reverse">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4 space-x-reverse">
                   <input
                     type="radio"
                     id="homePageFile"
@@ -892,7 +892,7 @@ export default function CourseEditorPage() {
                   </Label>
                 </div>
                 
-                <div className="flex items-center space-x-2 space-x-reverse">
+                <div className="flex items-center space-x-4 space-x-reverse">
                   <input
                     type="radio"
                     id="aboutFile"
@@ -910,7 +910,7 @@ export default function CourseEditorPage() {
                   </Label>
                 </div>
                 
-                <div className="flex items-center space-x-2 space-x-reverse">
+                <div className="flex items-center space-x-4 space-x-reverse">
                   <input
                     type="radio"
                     id="aboutLink"
@@ -1084,7 +1084,7 @@ export default function CourseEditorPage() {
                 <Button
                   type="button"
                   onClick={() => setShowImageSizes(!showImageSizes)}
-                  className="mb-2 h-8 px-3 text-xs bg-black text-white hover:bg-gray-800"
+                  className="mb-2 h-8 px-3 text-xs bg-gray-500 text-white hover:bg-gray-600"
                 >
                   לחצו לראות את גדלי התמונות הנדרשים
                 </Button>
@@ -1161,7 +1161,7 @@ export default function CourseEditorPage() {
                   האם סקרי שביעות רצון הוכנסו לקורס? <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("הוספת סקרי שביעות רצון (חובה להוסיף לקורס ולאשר אחרי הוספה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                 </Label>
                 <div className="flex items-center gap-6 space-x-reverse">
-                  <div className="flex items-center space-x-2 space-x-reverse">
+                  <div className="flex items-center space-x-4 space-x-reverse">
                     <input
                       type="radio"
                       id="surveysNo"
@@ -1175,7 +1175,7 @@ export default function CourseEditorPage() {
                       לא
                     </Label>
                   </div>
-                  <div className="flex items-center space-x-2 space-x-reverse">
+                  <div className="flex items-center space-x-4 space-x-reverse">
                     <input
                       type="radio"
                       id="surveysYes"

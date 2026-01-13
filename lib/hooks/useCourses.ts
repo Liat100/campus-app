@@ -86,31 +86,20 @@ export function useCourses() {
     const loadCourses = async () => {
       setIsLoading(true);
       try {
-        // Try to fetch from API (primary source)
+        // 1. נסיון לקבל נתונים מה-API (השרת)
         const apiCourses = await fetchCoursesFromAPI();
         
-        if (apiCourses.length > 0) {
-          setCourses(apiCourses);
-          // Update localStorage cache
-          saveCoursesToStorage(apiCourses);
-        } else {
-          // If no courses in API, check localStorage as backup
-          const cachedCourses = getCoursesFromStorage();
-          if (cachedCourses.length > 0) {
-            setCourses(cachedCourses);
-            // Sync cached courses back to API
-            try {
-              await saveCoursesToAPI(cachedCourses);
-            } catch (error) {
-              console.warn("Failed to sync cached courses to API:", error);
-            }
-          }
-        }
+        // אם ה-API הצליח, אנחנו משתמשים רק בו ומעדכנים את הגיבוי המקומי
+        setCourses(apiCourses);
+        saveCoursesToStorage(apiCourses);
+        
       } catch (error) {
-        console.error("Failed to load courses from API, using localStorage backup:", error);
-        // Fallback to localStorage if API fails
+        console.error("Failed to load from API, using local backup:", error);
+        // רק אם השרת נפל לגמרי, נשתמש במה שיש במחשב
         const cachedCourses = getCoursesFromStorage();
-        setCourses(cachedCourses);
+        if (cachedCourses.length > 0) {
+          setCourses(cachedCourses);
+        }
       } finally {
         setIsLoading(false);
       }
