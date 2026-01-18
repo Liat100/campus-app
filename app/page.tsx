@@ -191,26 +191,14 @@ export default function Dashboard() {
                           {course.name || "ללא שם קורס"}
                         </CardTitle>
                       </Link>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeleteCourse(course.id, course.name || "ללא שם קורס");
-                          }}
-                          title="מחק קורס"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="flex flex-col gap-2 -mt-2 -mr-2">
                       <Link href={`/courses/${course.id}`} title="לחץ לעריכה">
                         <Button 
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
-                          className="border-gray-700 bg-white hover:bg-gray-50 text-gray-700"
+                          className="bg-white hover:bg-gray-50 text-gray-700"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-5 w-5" />
                         </Button>
                       </Link>
                       </div>
@@ -260,6 +248,20 @@ export default function Dashboard() {
                           </div>
                         </div>
                       )}
+                    </div>
+                    <div className="flex justify-end -mr-2 mt-4">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteCourse(course.id, course.name || "ללא שם קורס");
+                        }}
+                        title="מחק קורס"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

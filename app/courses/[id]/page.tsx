@@ -27,12 +27,12 @@ export default function CourseEditorPage() {
   const router = useRouter();
   const courseId = params.id as string;
   const isNewCourse = courseId === "new";
-  
+
   const { getCourseById, createCourse, updateCourse, isLoading } = useCourses();
-  
+
   // Find existing course or create new one
-  const existingCourse = isNewCourse 
-    ? null 
+  const existingCourse = isNewCourse
+    ? null
     : getCourseById(Number(courseId));
 
   const [course, setCourse] = useState<Partial<Course>>({
@@ -118,7 +118,7 @@ export default function CourseEditorPage() {
     const missing = getMissingMandatoryFields(course);
     setMissingFields(missing);
     setIsReady(isCourseReadyForLaunch(course));
-    
+
     // Validate with Zod
     const result = courseSchema.safeParse(course);
     if (!result.success) {
@@ -389,7 +389,7 @@ export default function CourseEditorPage() {
       <div className="pointer-events-none absolute top-1/2 right-1/3 w-20 h-20 rotate-20 bg-indigo-400/6 backdrop-blur-[2px] [clip-path:polygon(50%_0%,0%_100%,100%_100%)]" />
       <div className="pointer-events-none absolute bottom-1/4 right-1/2 w-24 h-24 -rotate-12 bg-purple-300/8 backdrop-blur-[2px] [clip-path:polygon(50%_0%,0%_100%,100%_100%)]" />
       <div className="pointer-events-none absolute top-3/4 left-1/4 w-18 h-18 rotate-25 bg-blue-300/7 backdrop-blur-[2px] [clip-path:polygon(50%_0%,0%_100%,100%_100%)]" />
-      
+
       <div className="relative mx-auto max-w-4xl">
         <div className="mb-6">
           <Link href="/">
@@ -537,10 +537,10 @@ export default function CourseEditorPage() {
                   />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={() => clearField("name")}
-                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                    className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                     title="מחק את השדה"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -602,10 +602,10 @@ export default function CourseEditorPage() {
                     />
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
                       onClick={() => clearField("newName")}
-                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                       title="מחק את השדה"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -634,11 +634,10 @@ export default function CourseEditorPage() {
                   }
                 >
                   <SelectTrigger
-                    className={`flex-row-reverse w-auto min-w-[140px] ${
-                      isFieldMissing("סוג קורס") || hasError("type")
-                        ? "border-red-500"
-                        : ""
-                    }`}
+                    className={`flex-row-reverse w-auto min-w-[140px] ${isFieldMissing("סוג קורס") || hasError("type")
+                      ? "border-red-500"
+                      : ""
+                      }`}
                   >
                     <SelectValue placeholder="בחר סוג קורס" className="text-right" />
                   </SelectTrigger>
@@ -676,10 +675,10 @@ export default function CourseEditorPage() {
                         />
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
                           onClick={() => clearField("gradingPercentages")}
-                          className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                          className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
                           title="מחק את השדה"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -709,7 +708,7 @@ export default function CourseEditorPage() {
                   {/* Certificate Logo and Signature */}
                   <div className="space-y-4">
                     <h4 className="text-base font-bold text-gray-700">פרטים הנדרשים לתעודה:</h4>
-                    
+
                     <div className="space-y-4">
                       <h5 className="text-sm text-gray-700">פרטי החותם על התעודה:</h5>
                       <div className="space-y-2">
@@ -728,10 +727,10 @@ export default function CourseEditorPage() {
                           />
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
                             onClick={() => clearField("signerRole")}
-                            className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                            className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                             title="מחק את השדה"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -741,7 +740,7 @@ export default function CourseEditorPage() {
                           <p className="text-sm text-red-500">{errors.signerRole}</p>
                         )}
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="signerName">
                           שם החותם: <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("שם החותם (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
@@ -758,10 +757,10 @@ export default function CourseEditorPage() {
                           />
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
                             onClick={() => clearField("signerName")}
-                            className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                            className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                             title="מחק את השדה"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -891,7 +890,7 @@ export default function CourseEditorPage() {
                     העלאת קובץ פרטי עמוד הבית
                   </Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-4 space-x-reverse">
                   <input
                     type="radio"
@@ -909,7 +908,7 @@ export default function CourseEditorPage() {
                     העלאת קובץ עמוד אודות
                   </Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-4 space-x-reverse">
                   <input
                     type="radio"
@@ -983,17 +982,17 @@ export default function CourseEditorPage() {
                       placeholder="לדוגמה: https://example.com/about"
                       className={
                         isFieldMissing("קישור עמוד אודות (חובה כאשר נבחרה אפשרות זו)") ||
-                        hasError("aboutPageLink")
+                          hasError("aboutPageLink")
                           ? "border-red-500"
                           : ""
                       }
                     />
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
                       onClick={() => clearField("aboutPageLink")}
-                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                       title="מחק את השדה"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1065,10 +1064,10 @@ export default function CourseEditorPage() {
                     />
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
                       onClick={() => clearField("marketingImagesLink")}
-                      className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                      className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                       title="מחק את השדה"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1088,7 +1087,7 @@ export default function CourseEditorPage() {
                 >
                   לחצו לראות את גדלי התמונות הנדרשים
                 </Button>
-                
+
                 {showImageSizes && (
                   <div className="mt-3 space-y-2 p-3 bg-gray-50 rounded-md border">
                     <p className="text-sm font-medium text-gray-700 mb-2">מידע על גדלי תמונות שיווקיות:</p>
@@ -1131,10 +1130,10 @@ export default function CourseEditorPage() {
                   />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={() => clearField("supportContact")}
-                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                    className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                     title="מחק את השדה"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -1263,36 +1262,36 @@ export default function CourseEditorPage() {
                     </Button>
                   </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="learningHours">
-                        במידת הצורך פרט כאן על שעות הלמידה בקורס <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
-                      </Label>
-                      <div className="flex items-start gap-2">
-                        <Textarea
-                          id="learningHours"
-                          value={course.learningHours || ""}
-                          onChange={(e) => handleInputChange("learningHours", e.target.value)}
-                          onBlur={handleAutoSave}
-                          placeholder="דוגמה: סה&quot;כ שעות 300 שעות, 20 שעות פרק 1, 50 שעות פרק 2, 30 שעות פרק 3, 40 שעות פרק 4..."
-                          className={
-                            isFieldMissing("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)")
-                              ? "border-red-500"
-                              : ""
-                          }
-                          rows={4}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => clearField("learningHours")}
-                          className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
-                          title="מחק את השדה"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="learningHours">
+                      במידת הצורך פרט כאן על שעות הלמידה בקורס <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                    </Label>
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        id="learningHours"
+                        value={course.learningHours || ""}
+                        onChange={(e) => handleInputChange("learningHours", e.target.value)}
+                        onBlur={handleAutoSave}
+                        placeholder="דוגמה: סה&quot;כ שעות 300 שעות, 20 שעות פרק 1, 50 שעות פרק 2, 30 שעות פרק 3, 40 שעות פרק 4..."
+                        className={
+                          isFieldMissing("פירוט תכנית הלימודים (חובה כאשר תכנית לימודים נדרשת)")
+                            ? "border-red-500"
+                            : ""
+                        }
+                        rows={4}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => clearField("learningHours")}
+                        className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                        title="מחק את השדה"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
+                  </div>
 
                   <p className="text-sm text-gray-600 mt-2">
                     ניתן לספק אחת מהאופציות - לא נדרש למלא את שתיהן
@@ -1395,10 +1394,10 @@ export default function CourseEditorPage() {
                   />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={() => clearField("additionalNotes")}
-                    className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
+                    className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 mt-1"
                     title="מחק את השדה"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -1411,7 +1410,7 @@ export default function CourseEditorPage() {
           {/* Course Folder Link Section - Collapsible */}
           <Card>
             {!showCourseFolder ? (
-              <CardHeader 
+              <CardHeader
                 className="cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
                 onClick={() => setShowCourseFolder(!showCourseFolder)}
               >
@@ -1432,7 +1431,7 @@ export default function CourseEditorPage() {
               </CardHeader>
             ) : (
               <>
-                <CardHeader 
+                <CardHeader
                   className="cursor-pointer hover:bg-gray-50 transition-colors rounded-t-lg"
                   onClick={() => setShowCourseFolder(!showCourseFolder)}
                 >
@@ -1472,10 +1471,10 @@ export default function CourseEditorPage() {
                       />
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
                         onClick={() => clearField("courseFolderLink")}
-                        className="h-8 w-8 border-gray-300 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                        className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
                         title="מחק את השדה"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
