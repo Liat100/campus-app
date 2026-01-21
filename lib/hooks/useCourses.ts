@@ -44,7 +44,9 @@ function saveCoursesToStorage(courses: Course[]): void {
 // Helper function to fetch courses from API
 async function fetchCoursesFromAPI(): Promise<Course[]> {
   try {
-    const response = await fetch("/api/courses");
+    const response = await fetch("/api/courses", {
+      cache: 'no-store',
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch courses: ${response.statusText}`);
     }
@@ -59,6 +61,9 @@ async function fetchCoursesFromAPI(): Promise<Course[]> {
 // Helper function to save courses to API
 async function saveCoursesToAPI(courses: Course[]): Promise<void> {
   try {
+    console.log(`[saveCoursesToAPI] Attempting to save ${courses.length} courses to API`);
+    console.log(`[saveCoursesToAPI] Course names:`, courses.map(c => c.name));
+    
     const response = await fetch("/api/courses", {
       method: "POST",
       headers: {
@@ -67,12 +72,29 @@ async function saveCoursesToAPI(courses: Course[]): Promise<void> {
       body: JSON.stringify(courses),
     });
 
+    console.log(`[saveCoursesToAPI] Response status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to save courses: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`[saveCoursesToAPI] Error response:`, errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText || `Failed to save courses: ${response.statusText}` };
+      }
+      
+      throw new Error(errorData.error || `Failed to save courses: ${response.status} ${response.statusText}`);
     }
+    
+    const responseData = await response.json();
+    console.log(`[saveCoursesToAPI] Successfully saved courses:`, responseData);
   } catch (error) {
-    console.error("Error saving courses to API:", error);
+    console.error("[saveCoursesToAPI] Error saving courses to API:", error);
+    if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+      console.error("[saveCoursesToAPI] Network error - is the server running?");
+    }
     throw error;
   }
 }
@@ -90,15 +112,15 @@ export function useCourses() {
         const apiCourses = await fetchCoursesFromAPI();
         
         // אם ה-API הצליח, אנחנו משתמשים רק בו ומעדכנים את הגיבוי המקומי
-        setCourses(apiCourses);
-        saveCoursesToStorage(apiCourses);
+          setCourses(apiCourses);
+          saveCoursesToStorage(apiCourses);
         
       } catch (error) {
         console.error("Failed to load from API, using local backup:", error);
         // רק אם השרת נפל לגמרי, נשתמש במה שיש במחשב
         const cachedCourses = getCoursesFromStorage();
         if (cachedCourses.length > 0) {
-          setCourses(cachedCourses);
+        setCourses(cachedCourses);
         }
       } finally {
         setIsLoading(false);
@@ -124,107 +146,159 @@ export function useCourses() {
   // Create a new course
   const createCourse = useCallback(
     async (courseData: Omit<Course, "id" | "createdAt">): Promise<Course> => {
+      console.log("[createCourse] Creating new course with data:", courseData);
+      
       const newCourse: Course = {
         ...courseData,
         id: Date.now(), // Simple ID generation
         createdAt: new Date(),
       };
 
-      const updatedCourses = [...courses, newCourse];
+      let updatedCourses: Course[] = [];
       
-      // Optimistic update
-      setCourses(updatedCourses);
-      saveCoursesToStorage(updatedCourses);
+      // Use functional update to get the latest courses state
+      setCourses((currentCourses) => {
+        updatedCourses = [...currentCourses, newCourse];
+        // Save to localStorage immediately
+        saveCoursesToStorage(updatedCourses);
+        return updatedCourses;
+      });
 
       try {
         // Save to API (primary source of truth)
+        console.log(`[createCourse] Saving ${updatedCourses.length} courses to API...`);
         await saveCoursesToAPI(updatedCourses);
-        console.log("Course created and saved to API:", newCourse);
+        console.log("[createCourse] Course created and saved to API:", newCourse);
       } catch (error) {
-        console.error("Failed to save course to API:", error);
-        // Revert optimistic update on error
-        setCourses(courses);
+        console.error("[createCourse] Failed to save course to API:", error);
+        // Reload from API to get correct state
+        try {
+          const apiCourses = await fetchCoursesFromAPI();
+          setCourses(apiCourses);
+          saveCoursesToStorage(apiCourses);
+        } catch (reloadError) {
+          console.error("[createCourse] Failed to reload from API:", reloadError);
+        }
         throw error;
       }
 
       return newCourse;
     },
-    [courses]
+    [] // No dependencies - uses functional update
   );
 
   // Update an existing course
   const updateCourse = useCallback(
     async (id: number, courseData: Partial<Course>): Promise<Course | null> => {
-      const courseIndex = courses.findIndex((course) => course.id === id);
+      console.log(`[updateCourse] Updating course ${id} with data:`, courseData);
+      
+      let updatedCourse: Course | null = null;
+      let updatedCourses: Course[] = [];
+      
+      // Use functional update to get the latest courses state
+      setCourses((currentCourses) => {
+        const courseIndex = currentCourses.findIndex((course) => course.id === id);
 
-      if (courseIndex === -1) {
-        console.error(`Course with id ${id} not found`);
+        if (courseIndex === -1) {
+          console.error(`[updateCourse] Course with id ${id} not found`);
+          return currentCourses;
+        }
+
+        updatedCourse = {
+          ...currentCourses[courseIndex],
+          ...courseData,
+          id, // Ensure ID doesn't change
+        };
+
+        updatedCourses = [...currentCourses];
+        updatedCourses[courseIndex] = updatedCourse;
+        
+        // Save to localStorage immediately
+        saveCoursesToStorage(updatedCourses);
+        
+        return updatedCourses;
+      });
+
+      if (!updatedCourse) {
+        console.error(`[updateCourse] Could not find course ${id}`);
         return null;
       }
 
-      const updatedCourse: Course = {
-        ...courses[courseIndex],
-        ...courseData,
-        id, // Ensure ID doesn't change
-      };
-
-      const updatedCourses = [...courses];
-      updatedCourses[courseIndex] = updatedCourse;
-      
-      // Optimistic update
-      const previousCourses = [...courses];
-      setCourses(updatedCourses);
-      saveCoursesToStorage(updatedCourses);
-
       try {
         // Save to API (primary source of truth)
+        console.log(`[updateCourse] Saving ${updatedCourses.length} courses to API...`);
         await saveCoursesToAPI(updatedCourses);
-        console.log("Course updated and saved to API:", updatedCourse);
+        console.log("[updateCourse] Course updated and saved to API:", updatedCourse);
       } catch (error) {
-        console.error("Failed to update course in API:", error);
-        // Revert optimistic update on error
-        setCourses(previousCourses);
-        saveCoursesToStorage(previousCourses);
+        console.error("[updateCourse] Failed to update course in API:", error);
+        // Reload from API to get correct state
+        try {
+          const apiCourses = await fetchCoursesFromAPI();
+          setCourses(apiCourses);
+          saveCoursesToStorage(apiCourses);
+        } catch (reloadError) {
+          console.error("[updateCourse] Failed to reload from API:", reloadError);
+        }
         throw error;
       }
 
       return updatedCourse;
     },
-    [courses]
+    [] // No dependencies - uses functional update
   );
 
   // Delete a course
   const deleteCourse = useCallback(
     async (id: number): Promise<boolean> => {
-      const courseIndex = courses.findIndex((course) => course.id === id);
+      console.log(`[deleteCourse] Deleting course ${id}`);
+      
+      let updatedCourses: Course[] = [];
+      let courseFound = false;
+      
+      // Use functional update to get the latest courses state
+      setCourses((currentCourses) => {
+        const courseIndex = currentCourses.findIndex((course) => course.id === id);
 
-      if (courseIndex === -1) {
-        console.error(`Course with id ${id} not found`);
+        if (courseIndex === -1) {
+          console.error(`[deleteCourse] Course with id ${id} not found`);
+          return currentCourses;
+        }
+
+        courseFound = true;
+        updatedCourses = currentCourses.filter((course) => course.id !== id);
+        
+        // Save to localStorage immediately
+        saveCoursesToStorage(updatedCourses);
+        
+        return updatedCourses;
+      });
+
+      if (!courseFound) {
+        console.error(`[deleteCourse] Course ${id} not found`);
         return false;
       }
 
-      const updatedCourses = courses.filter((course) => course.id !== id);
-      
-      // Optimistic update
-      const previousCourses = [...courses];
-      setCourses(updatedCourses);
-      saveCoursesToStorage(updatedCourses);
-
       try {
         // Save to API (primary source of truth)
+        console.log(`[deleteCourse] Saving ${updatedCourses.length} courses to API...`);
         await saveCoursesToAPI(updatedCourses);
-        console.log("Course deleted and saved to API:", id);
+        console.log("[deleteCourse] Course deleted and saved to API:", id);
       } catch (error) {
-        console.error("Failed to delete course from API:", error);
-        // Revert optimistic update on error
-        setCourses(previousCourses);
-        saveCoursesToStorage(previousCourses);
+        console.error("[deleteCourse] Failed to delete course from API:", error);
+        // Reload from API to get correct state
+        try {
+          const apiCourses = await fetchCoursesFromAPI();
+          setCourses(apiCourses);
+          saveCoursesToStorage(apiCourses);
+        } catch (reloadError) {
+          console.error("[deleteCourse] Failed to reload from API:", reloadError);
+        }
         throw error;
       }
 
       return true;
     },
-    [courses]
+    [] // No dependencies - uses functional update
   );
 
   return {

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { Document, Packer, Paragraph, TextRun, AlignmentType } from "docx";
+import { saveAs } from "file-saver";
 import { Course, courseSchema } from "@/lib/types";
 import { useCourses } from "@/lib/hooks/useCourses";
 import { getMissingMandatoryFields, isCourseReadyForLaunch } from "@/lib/courseValidation";
@@ -20,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowRight, AlertCircle, CheckCircle2, ExternalLink, ChevronDown, ChevronUp, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowRight, AlertCircle, CheckCircle2, ExternalLink, ChevronDown, ChevronUp, ChevronLeft, RotateCcw, Trash2, Plus } from "lucide-react";
 
 export default function CourseEditorPage() {
   const params = useParams();
@@ -56,20 +58,22 @@ export default function CourseEditorPage() {
     clientLogo: "",
     signerRole: "",
     signerName: "",
+    signers: [],
     certificateSignature: "",
     supportContact: "",
     courseLaunchDate: undefined,
     additionalNotes: "",
     courseFolderLink: "",
+    sectionCompleted: {},
   });
 
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showImageSizes, setShowImageSizes] = useState(false);
-  const [showCourseFolder, setShowCourseFolder] = useState(false);
   const [showMissingFieldsDetails, setShowMissingFieldsDetails] = useState(false);
   const [hasEstimatedLaunchDate, setHasEstimatedLaunchDate] = useState(false);
+  const [showSectionSwitches, setShowSectionSwitches] = useState<Record<string, boolean>>({});
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update form when existing course loads
@@ -96,11 +100,13 @@ export default function CourseEditorPage() {
         clientLogo: existingCourse.clientLogo || "",
         signerRole: existingCourse.signerRole || "",
         signerName: existingCourse.signerName || "",
+        signers: existingCourse.signers || [],
         certificateSignature: existingCourse.certificateSignature || "",
         supportContact: existingCourse.supportContact || "",
         courseLaunchDate: existingCourse.courseLaunchDate,
         additionalNotes: existingCourse.additionalNotes || "",
         courseFolderLink: existingCourse.courseFolderLink || "",
+        sectionCompleted: existingCourse.sectionCompleted || {},
       });
     }
   }, [existingCourse]);
@@ -173,6 +179,7 @@ export default function CourseEditorPage() {
         clientLogo: course.clientLogo,
         signerRole: course.signerRole,
         signerName: course.signerName,
+        signers: course.signers || [],
         certificateSignature: course.certificateSignature,
         supportContact: course.supportContact,
         courseLaunchDate: course.courseLaunchDate,
@@ -196,6 +203,144 @@ export default function CourseEditorPage() {
     return !isFieldMissing(fieldName);
   };
 
+  // Export current course data to a Word document (RTL)
+  const handleExportToWord = async () => {
+    try {
+      const courseName = course.name || "ללא שם קורס";
+      
+      // Helper function to create a field with label and value
+      const createFieldParagraph = (label: string, value: string | boolean | Date | undefined | null) => {
+        let displayValue = "לא הוזן מידע";
+        
+        if (value !== undefined && value !== null && value !== "") {
+          if (typeof value === "boolean") {
+            displayValue = value ? "כן" : "לא";
+          } else if (value instanceof Date) {
+            displayValue = value.toLocaleDateString("he-IL");
+          } else {
+            displayValue = String(value);
+          }
+        }
+
+        return [
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [
+              new TextRun({
+                text: `${label}:`,
+                bold: true,
+                size: 24, // ~12pt
+              }),
+            ],
+            spacing: { after: 120 }, // Small space after label
+          }),
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [
+              new TextRun({
+                text: displayValue,
+                size: 24, // ~12pt
+              }),
+            ],
+            spacing: { after: 240 }, // Space after content
+          }),
+        ];
+      };
+
+      const children: Paragraph[] = [];
+
+      // Basic Information
+      children.push(...createFieldParagraph("שם הקורס", course.name));
+      children.push(...createFieldParagraph("סוג קורס", course.type === "certificate" ? "קורס עם תעודה" : "קורס ללא תעודה"));
+      children.push(...createFieldParagraph("האם נדרש שינוי שם", course.nameChangeRequired));
+      if (course.nameChangeRequired) {
+        children.push(...createFieldParagraph("שם חדש", course.newName));
+      }
+
+      // Course Folder
+      children.push(...createFieldParagraph("קישור לתיקיית Drive", course.courseFolderLink));
+
+      // Home Page
+      if (course.homePageOption === "homePageFile") {
+        children.push(...createFieldParagraph("עמוד הבית", "העלאת קובץ עמוד הבית"));
+        children.push(...createFieldParagraph("קובץ עמוד הבית", course.homePageFile));
+      } else if (course.homePageOption === "aboutFile") {
+        children.push(...createFieldParagraph("עמוד הבית", "העלאת קובץ עמוד אודות"));
+        children.push(...createFieldParagraph("קובץ עמוד אודות", course.aboutFile));
+      } else if (course.homePageOption === "aboutLink") {
+        children.push(...createFieldParagraph("עמוד הבית", "הכנסת קישור עמוד אודות"));
+        children.push(...createFieldParagraph("קישור עמוד אודות", course.aboutPageLink));
+      }
+
+      // Certificate Details
+      if (course.type === "certificate") {
+        children.push(...createFieldParagraph("תפקיד החותם והאירגון", course.signerRole));
+        children.push(...createFieldParagraph("שם החותם", course.signerName));
+        
+        // Additional signers
+        if (course.signers && course.signers.length > 0) {
+          course.signers.forEach((signer, index) => {
+            children.push(...createFieldParagraph(`חותם נוסף ${index + 1} - תפקיד`, signer.role));
+            children.push(...createFieldParagraph(`חותם נוסף ${index + 1} - שם`, signer.name));
+          });
+        }
+        
+        children.push(...createFieldParagraph("קובץ/י החתימה", course.certificateSignature));
+        children.push(...createFieldParagraph("האם נדרש לוגו לקוח", course.clientLogoRequired));
+        if (course.clientLogoRequired) {
+          children.push(...createFieldParagraph("לוגו לקוח", course.clientLogo));
+        }
+      }
+
+      // Syllabus
+      children.push(...createFieldParagraph("האם נדרשת תכנית לימודים", course.syllabusRequired));
+      if (course.syllabusRequired) {
+        children.push(...createFieldParagraph("שעות למידה", course.learningHours));
+        children.push(...createFieldParagraph("קובץ סילבוס", course.syllabusFile));
+      }
+
+      // Grading
+      children.push(...createFieldParagraph("מודל ציונים", course.gradingPercentages));
+      children.push(...createFieldParagraph("קובץ מודל ציונים", course.gradingFile));
+
+      // Marketing Images
+      children.push(...createFieldParagraph("האם יש תמונות שיווקיות", course.marketingImagesAvailable));
+      if (course.marketingImagesAvailable) {
+        children.push(...createFieldParagraph("קישור תמונות שיווקיות", course.marketingImagesLink));
+      }
+
+      // Surveys
+      children.push(...createFieldParagraph("האם סקרי שביעות רצון הוכנסו לקורס", course.surveysAdded));
+
+      // Support
+      children.push(...createFieldParagraph("פרטי יצירת קשר לתמיכה", course.supportContact));
+
+      // Launch Date
+      children.push(...createFieldParagraph("תאריך פתיחת קורס ללומדים", course.courseLaunchDate));
+
+      // Additional Notes
+      children.push(...createFieldParagraph("הערות נוספות", course.additionalNotes));
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              rightToLeft: true,
+            },
+            children: children,
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const safeName = courseName.replace(/[\\/:*?"<>|]/g, "_");
+      saveAs(blob, `${safeName || "course"}.docx`);
+    } catch (error) {
+      console.error("Error exporting course to Word:", error);
+      alert("שגיאה בייצוא המסמך. נסה שוב.");
+    }
+  };
+
   const handleOpenCourseFolder = (fieldName: keyof Course) => {
     if (course.courseFolderLink) {
       window.open(course.courseFolderLink, '_blank');
@@ -214,13 +359,119 @@ export default function CourseEditorPage() {
     window.location.href = mailtoLink;
   };
 
+  const handleAddSigner = () => {
+    const currentSigners = course.signers || [];
+    setCourse({
+      ...course,
+      signers: [...currentSigners, { role: "", name: "" }],
+    });
+  };
+
+  const handleRemoveSigner = (index: number) => {
+    const currentSigners = course.signers || [];
+    setCourse({
+      ...course,
+      signers: currentSigners.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleSignerChange = (index: number, field: "role" | "name", value: string) => {
+    const currentSigners = course.signers || [];
+    const updatedSigners = [...currentSigners];
+    if (!updatedSigners[index]) {
+      updatedSigners[index] = { role: "", name: "" };
+    }
+    updatedSigners[index] = {
+      ...updatedSigners[index],
+      [field]: value,
+    };
+    setCourse({
+      ...course,
+      signers: updatedSigners,
+    });
+  };
+
+  const handleSectionCompleted = (sectionKey: string, completed: boolean) => {
+    setCourse({
+      ...course,
+      sectionCompleted: {
+        ...course.sectionCompleted,
+        [sectionKey]: completed,
+      },
+    });
+  };
+
+  const isSectionCompleted = (sectionKey: string) => {
+    return course.sectionCompleted?.[sectionKey] || false;
+  };
+
+  // Section Completed Switch Component
+  const SectionCompletedSwitch = ({ sectionKey }: { sectionKey: string }) => {
+    const isVisible = showSectionSwitches[sectionKey] || false;
+    
+    return (
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        {!isVisible ? (
+          <button
+            type="button"
+            onClick={() => setShowSectionSwitches({ ...showSectionSwitches, [sectionKey]: true })}
+            className="flex items-center justify-end gap-2 text-gray-400 hover:text-gray-600 cursor-pointer py-1"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        ) : (
+          <div className="flex items-center justify-end gap-3">
+            <span className="text-sm text-gray-400">
+              למלוי פנימי - {isSectionCompleted(sectionKey) ? "בוצע" : "לא בוצע בקורס"}
+            </span>
+            <div className="relative inline-flex items-center min-w-[36px]">
+              <input
+                type="checkbox"
+                id={`section-${sectionKey}`}
+                checked={isSectionCompleted(sectionKey)}
+                onChange={(e) => handleSectionCompleted(sectionKey, e.target.checked)}
+                className="sr-only"
+              />
+              <div
+                onClick={() => handleSectionCompleted(sectionKey, !isSectionCompleted(sectionKey))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer border border-gray-600 ${
+                  isSectionCompleted(sectionKey) ? "bg-emerald-500" : "bg-red-400"
+                }`}
+              >
+                <span
+                  className={`absolute h-5 w-5 rounded-full bg-white border border-gray-600 transition-all duration-200 ease-in-out ${
+                    isSectionCompleted(sectionKey) ? "left-[25px]" : "left-[2px]"
+                  }`}
+                />
+                {isSectionCompleted(sectionKey) && (
+                  <CheckCircle2 className={`absolute h-4 w-4 text-white transition-all duration-200 ease-in-out ${
+                    isSectionCompleted(sectionKey) ? "left-[25px]" : "left-[2px]"
+                  }`} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const handleSave = async () => {
-    // Validate with Zod
-    const result = courseSchema.safeParse(course);
-    if (!result.success) {
-      console.error("Validation failed:", result.error.errors);
+    console.log("[handleSave] Starting save...");
+    console.log("[handleSave] Course state:", course);
+    
+    // Basic validation - check only required fields
+    if (!course.name || course.name.trim() === "") {
+      alert("שגיאה: שם הקורס הוא שדה חובה");
       return;
     }
+
+    if (!course.type) {
+      alert("שגיאה: סוג הקורס הוא שדה חובה");
+      return;
+    }
+
+    console.log("[handleSave] Validation passed");
 
     try {
       if (isNewCourse) {
@@ -246,11 +497,13 @@ export default function CourseEditorPage() {
           clientLogo: course.clientLogo,
           signerRole: course.signerRole,
           signerName: course.signerName,
+          signers: course.signers || [],
           certificateSignature: course.certificateSignature,
           supportContact: course.supportContact,
           courseLaunchDate: course.courseLaunchDate,
           additionalNotes: course.additionalNotes,
           courseFolderLink: course.courseFolderLink,
+          sectionCompleted: course.sectionCompleted || {},
         });
 
         console.log("=== Course Created ===");
@@ -262,6 +515,7 @@ export default function CourseEditorPage() {
         alert(`קורס חדש נשמר בהצלחה!\n\nשם הקורס: ${newCourse.name}\nID: ${newCourse.id}`);
       } else {
         // Update existing course
+        console.log("[handleSave] Calling updateCourse...");
         const updatedCourse = await updateCourse(Number(courseId), {
           name: course.name,
           type: course.type,
@@ -283,29 +537,35 @@ export default function CourseEditorPage() {
           clientLogo: course.clientLogo,
           signerRole: course.signerRole,
           signerName: course.signerName,
+          signers: course.signers || [],
           certificateSignature: course.certificateSignature,
           supportContact: course.supportContact,
           courseLaunchDate: course.courseLaunchDate,
           additionalNotes: course.additionalNotes,
           courseFolderLink: course.courseFolderLink,
+          sectionCompleted: course.sectionCompleted || {},
         });
 
-        if (updatedCourse) {
-          console.log("=== Course Updated ===");
-          console.log("Course ID:", updatedCourse.id);
-          console.log("Course Data:", JSON.stringify(updatedCourse, null, 2));
-          console.log("Ready for Launch:", isReady);
-          console.log("======================");
+        console.log("[handleSave] updateCourse returned:", updatedCourse);
 
-          alert(`הקורס עודכן בהצלחה!\n\nשם הקורס: ${updatedCourse.name}`);
-        } else {
-          alert("שגיאה בעדכון הקורס");
+        if (!updatedCourse) {
+          console.error("[handleSave] updateCourse returned null - course not found");
+          alert("שגיאה בעדכון הקורס: הקורס לא נמצא. נסה לרענן את הדף ולנסות שוב.");
           return;
         }
+
+        console.log("=== Course Updated ===");
+        console.log("Course ID:", updatedCourse.id);
+        console.log("Course Data:", JSON.stringify(updatedCourse, null, 2));
+        console.log("Ready for Launch:", isReady);
+        console.log("======================");
+
+        alert(`הקורס עודכן בהצלחה!\n\nשם הקורס: ${updatedCourse.name}`);
       }
     } catch (error) {
-      console.error("Error saving course:", error);
-      alert("שגיאה בשמירת הקורס. נסה שוב.");
+      console.error("[handleSave] Error saving course:", error);
+      const errorMessage = error instanceof Error ? error.message : "שגיאה לא ידועה";
+      alert(`שגיאה בשמירת הקורס:\n${errorMessage}\n\nנסה שוב או בדוק את הקונסול לפרטים נוספים.`);
     }
   };
 
@@ -344,11 +604,13 @@ export default function CourseEditorPage() {
           clientLogo: course.clientLogo,
           signerRole: course.signerRole,
           signerName: course.signerName,
+          signers: course.signers || [],
           certificateSignature: course.certificateSignature,
           supportContact: course.supportContact,
           courseLaunchDate: course.courseLaunchDate,
           additionalNotes: course.additionalNotes,
           courseFolderLink: course.courseFolderLink,
+          sectionCompleted: course.sectionCompleted || {},
         });
       } catch (error) {
         console.error("Error auto-saving course:", error);
@@ -392,13 +654,6 @@ export default function CourseEditorPage() {
 
       <div className="relative mx-auto max-w-4xl">
         <div className="mb-6">
-          <Link href="/">
-            <Button className="mb-4">
-              <ArrowRight className="ml-2 h-4 w-4" />
-              חזרה לדשבורד
-            </Button>
-          </Link>
-
           {/* Hero Banner for course editor - matching dashboard colors */}
           <div className="relative w-full overflow-hidden rounded-2xl bg-indigo-50 bg-gradient-to-l from-indigo-200 via-indigo-100 to-transparent py-2 px-4 min-h-[60px] block">
             {/* Minimalist geometric triangles with glass effect - matching dashboard */}
@@ -511,6 +766,59 @@ export default function CourseEditorPage() {
         )}
 
         <div className="space-y-8">
+          {/* Course Folder Link Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>תיקיית עליה לאוויר</CardTitle>
+              <CardDescription>
+                כדי לרכז את כל קבצי העלייה לאוויר במקום אחד, יש לפתוח תיקיית "עליה לאוויר" ולשים אותה בדרייב בתיקיית הקורס (חשוב לזכור: יש לפתוח את התיקייה לשיתוף).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-right">
+              <div className="space-y-2">
+                <Label htmlFor="courseFolderLink">
+                  קישור לתיקיית Drive <span className={isFieldComplete("קישור לתיקיית Drive") ? "text-emerald-500" : "text-gray-400"}>*</span>
+                </Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    id="courseFolderLink"
+                    type="url"
+                    value={course.courseFolderLink || ""}
+                    onChange={(e) => handleInputChange("courseFolderLink", e.target.value)}
+                    onBlur={handleAutoSave}
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    className="flex-1"
+                    dir="ltr"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => clearField("courseFolderLink")}
+                    className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+                    title="מחק את השדה"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (course.courseFolderLink) {
+                        window.open(course.courseFolderLink, '_blank');
+                      }
+                    }}
+                    disabled={!course.courseFolderLink}
+                    variant="outline"
+                    className="h-10 px-4 text-sm"
+                  >
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                    פתח תיקיית קורס
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Section 1: General Information */}
           <Card>
             <CardHeader>
@@ -613,6 +921,8 @@ export default function CourseEditorPage() {
                   </div>
                 </div>
               )}
+              
+              <SectionCompletedSwitch sectionKey="general-info" />
             </CardContent>
           </Card>
 
@@ -771,9 +1081,69 @@ export default function CourseEditorPage() {
                         )}
                       </div>
 
+                      {/* Add Additional Signer Button */}
+                      <div className="mt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddSigner}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          הוסף חותם נוסף
+                        </Button>
+                      </div>
+
+                      {/* Additional Signers */}
+                      {course.signers && course.signers.length > 0 && (
+                        <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
+                          {course.signers.map((signer, index) => (
+                            <div key={index} className="space-y-3 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                              <div className="flex items-center justify-between mb-2">
+                                <h6 className="text-sm font-semibold text-gray-700">חותם נוסף #{index + 1}</h6>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRemoveSigner(index)}
+                                  className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                  title="הסר חותם"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>
+                                  תפקיד החותם והאירגון: <span className="text-gray-500 font-normal">(שדה חובה)</span>
+                                </Label>
+                                <Input
+                                  type="text"
+                                  value={signer.role || ""}
+                                  onChange={(e) => handleSignerChange(index, "role", e.target.value)}
+                                  onBlur={handleAutoSave}
+                                  placeholder="לדוגמה: מנכ&quot;ל במשרד הרווחה"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>
+                                  שם החותם: <span className="text-gray-500 font-normal">(שדה חובה)</span>
+                                </Label>
+                                <Input
+                                  type="text"
+                                  value={signer.name || ""}
+                                  onChange={(e) => handleSignerChange(index, "name", e.target.value)}
+                                  onBlur={handleAutoSave}
+                                  placeholder="לדוגמה: יוסף כהן"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label>
-                          קובץ החתימה <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
+                          קובץ/י החתימה <span className="text-gray-500 font-normal">(שדה חובה)</span> <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span>
                         </Label>
                         <p className="text-sm text-gray-600 mb-2">
                           <span className={isFieldComplete("חתימה על התעודה (חובה לקורס עם תעודה)") ? "text-emerald-500" : "text-red-500"}>*</span> יש לעלות את חתימת החותם על רקע שקוף
@@ -855,6 +1225,8 @@ export default function CourseEditorPage() {
                   </div>
                 </>
               )}
+              
+              <SectionCompletedSwitch sectionKey="certificate-details" />
             </CardContent>
           </Card>
 
@@ -1003,6 +1375,8 @@ export default function CourseEditorPage() {
                   )}
                 </div>
               )}
+              
+              <SectionCompletedSwitch sectionKey="home-page" />
             </CardContent>
           </Card>
 
@@ -1100,6 +1474,8 @@ export default function CourseEditorPage() {
                   </div>
                 )}
               </div>
+              
+              <SectionCompletedSwitch sectionKey="marketing-images" />
             </CardContent>
           </Card>
 
@@ -1145,6 +1521,8 @@ export default function CourseEditorPage() {
                   </p>
                 )}
               </div>
+              
+              <SectionCompletedSwitch sectionKey="support" />
             </CardContent>
           </Card>
 
@@ -1298,6 +1676,8 @@ export default function CourseEditorPage() {
                   </p>
                 </>
               )}
+              
+              <SectionCompletedSwitch sectionKey="syllabus" />
             </CardContent>
           </Card>
 
@@ -1368,6 +1748,8 @@ export default function CourseEditorPage() {
                   </div>
                 )}
               </div>
+              
+              <SectionCompletedSwitch sectionKey="launch-date" />
             </CardContent>
           </Card>
 
@@ -1404,116 +1786,47 @@ export default function CourseEditorPage() {
                   </Button>
                 </div>
               </div>
+              
+              <SectionCompletedSwitch sectionKey="additional-notes" />
             </CardContent>
           </Card>
 
-          {/* Course Folder Link Section - Collapsible */}
-          <Card>
-            {!showCourseFolder ? (
-              <CardHeader
-                className="cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
-                onClick={() => setShowCourseFolder(!showCourseFolder)}
-              >
-                <div className="flex items-center justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowCourseFolder(!showCourseFolder);
-                    }}
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-            ) : (
-              <>
-                <CardHeader
-                  className="cursor-pointer hover:bg-gray-50 transition-colors rounded-t-lg"
-                  onClick={() => setShowCourseFolder(!showCourseFolder)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-base font-normal">אין צורך לעדכן לשימוש פנימי בלבד</CardTitle>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowCourseFolder(!showCourseFolder);
-                      }}
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4 text-right">
-                  <div className="space-y-2">
-                    <Label htmlFor="courseFolderLink">
-                      קישור לתיקיית Drive <span className={isFieldComplete("קישור לתיקיית Drive") ? "text-emerald-500" : "text-gray-400"}>*</span>
-                    </Label>
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        id="courseFolderLink"
-                        type="url"
-                        value={course.courseFolderLink || ""}
-                        onChange={(e) => handleInputChange("courseFolderLink", e.target.value)}
-                        onBlur={handleAutoSave}
-                        placeholder="https://drive.google.com/drive/folders/..."
-                        className="flex-1"
-                        dir="ltr"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => clearField("courseFolderLink")}
-                        className="h-8 w-8 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600"
-                        title="מחק את השדה"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          if (course.courseFolderLink) {
-                            window.open(course.courseFolderLink, '_blank');
-                          }
-                        }}
-                        disabled={!course.courseFolderLink}
-                        variant="outline"
-                        className="h-10 px-4 text-sm"
-                      >
-                        <ExternalLink className="ml-2 h-4 w-4" />
-                        פתח תיקיית קורס
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </>
-            )}
-          </Card>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-4">
-            <Button
-              onClick={handleSendEmail}
-              className="px-6 font-semibold"
-            >
-              שלח עדכון למייל
-            </Button>
-            <Button
-              onClick={handleSave}
-              className="px-6 font-semibold"
-            >
-              שמור
-            </Button>
+          <div className="flex justify-between gap-4 items-center">
+            <div className="flex gap-3">
+              <Link href="/">
+                <Button
+                  variant="outline"
+                  className="px-6 font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300"
+                >
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                  חזרה לדשבורד
+                </Button>
+              </Link>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportToWord}
+                className="px-6 font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300"
+              >
+                ייצוא לוורד
+              </Button>
+            </div>
+            <div className="flex gap-4">
+              <Button
+                onClick={handleSendEmail}
+                className="px-6 font-semibold"
+              >
+                שלח עדכון למייל
+              </Button>
+              <Button
+                onClick={handleSave}
+                className="px-6 font-semibold"
+              >
+                שמור
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -23,11 +23,13 @@ export interface Course {
   clientLogo?: string;
   signerRole?: string;
   signerName?: string;
+  signers?: Array<{ role: string; name: string }>;
   certificateSignature?: string;
   supportContact?: string;
   courseLaunchDate?: Date;
   additionalNotes?: string;
   courseFolderLink?: string;
+  sectionCompleted?: Record<string, boolean>;
   createdAt?: Date;
 }
 
