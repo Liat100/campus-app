@@ -225,6 +225,7 @@ export default function CourseEditorPage() {
         return [
           new Paragraph({
             alignment: AlignmentType.RIGHT,
+            bidirectional: true,
             children: [
               new TextRun({
                 text: `${label}:`,
@@ -236,6 +237,7 @@ export default function CourseEditorPage() {
           }),
           new Paragraph({
             alignment: AlignmentType.RIGHT,
+            bidirectional: true,
             children: [
               new TextRun({
                 text: displayValue,
@@ -324,9 +326,6 @@ export default function CourseEditorPage() {
       const doc = new Document({
         sections: [
           {
-            properties: {
-              rightToLeft: true,
-            },
             children: children,
           },
         ],
